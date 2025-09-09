@@ -258,7 +258,7 @@ local webhookSupported = http_request ~= nil
 local lastSentTime = 0
 local COOLDOWN_TIME = 15 -- วินาที
 
--- ฟังก์ชันดึง Result (ค่าอัพเดตล่าสุด)
+-- ฟังก์ชันดึง Result (ค่าอัพเดตล่าสุด) - Updated with Fall Currency
 discordWebhook.getPlayerData = function()
     local dataPath = replicated:FindFirstChild("Player_Data")
     if not dataPath then return {} end
@@ -271,48 +271,12 @@ discordWebhook.getPlayerData = function()
     return {
         gems = stats:FindFirstChild("Gem") and stats.Gem.Value or 0,
         golds = stats:FindFirstChild("Gold") and stats.Gold.Value or 0,
-        rcCells = stats:FindFirstChild("RCCells") and stats.RCCells.Value or 0
+        rcCells = stats:FindFirstChild("RCCells") and stats.RCCells.Value or 0,
+        fallCurrency = stats:FindFirstChild("Fall Currency") and stats["Fall Currency"].Value or 0
     }
 end
 
--- ฟังก์ชันแปลง RewardsShow เป็น text พร้อม emoji (รอให้ข้อมูลอัพเดต)
-discordWebhook.getRewards = function()
-    local rewards = {}
-    if not LocalPlayer:FindFirstChild("RewardsShow") then return rewards end
-
-    -- รอสักครู่ให้ RewardsShow อัพเดต
-    task.wait(1)
-
-    for _, folder in pairs(LocalPlayer.RewardsShow:GetChildren()) do
-        if folder:IsA("Folder") then
-            local amount = folder:FindFirstChild("Amount")
-            if amount and (amount:IsA("IntValue") or amount:IsA("NumberValue")) and amount.Value > 0 then
-                local icon = ""
-                local name = folder.Name:lower()
-
-                if name:find("gem") then
-                    icon = "💎 "
-                elseif name:find("gold") then
-                    icon = "🪙 "
-                elseif name:find("exp") then
-                    icon = "⭐ "
-                elseif name:find("rccells") or name:find("cell") then
-                    icon = "🩸 "
-                elseif name:find("portal") then
-                    icon = "🌀 "
-                else
-                    icon = "🎁 "
-                end
-
-                table.insert(rewards, icon .. "x" .. amount.Value .. " " .. folder.Name)
-            end
-        end
-    end
-
-    return rewards
-end
-
--- ฟังก์ชันส่ง Discord Embed
+-- ฟังก์ชันส่ง Discord Embed - Updated with Fall Currency
 discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTime)
     if not Settings.DiscordEnabled or not webhookSupported then
         return
@@ -321,24 +285,25 @@ discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTim
     local rewardText = (#rewardList > 0) and table.concat(rewardList, "\n") or "❌ No Rewards"
 
     local embed = {
-        title = "# GAME IS COMPLETED?!🍀🎮",
+        title = "GAME IS COMPLETED",
         color = 0x99ff33,
         fields = {
-            { name = "👤 Player", value = LocalPlayer.Name, inline = false },
+            { name = "Player", value = LocalPlayer.Name, inline = false },
             {
-                name = "🏆 Current Stats",
+                name = "Result - ข้อมูล",
                 value = string.format(
-                    "**Map:** %s\n**Time:** %s\n💎 Gems: **%s**\n🪙 Gold: **%s**\n🩸 RC.Cells: **%s**",
+                    "**Map:** %s\n**Time:** %s\nGems: **%s**\nGold: **%s**\nRC.Cells: **%s**\nFall Currency: **%s**",
                     mapName,
                     playTime,
                     tostring(resultData.gems),
                     tostring(resultData.golds),
-                    tostring(resultData.rcCells)
+                    tostring(resultData.rcCells),
+                    tostring(resultData.fallCurrency)
                 ),
                 inline = false
             },
             {
-                name = "🎁 Session Rewards",
+                name = "Rewards - ของรางวัล",
                 value = rewardText,
                 inline = false
             }
