@@ -1,413 +1,569 @@
-local replicated = game:GetService("ReplicatedStorage")
-local PathfindingService = game:GetService("PathfindingService")
-local vim = game:GetService("VirtualInputManager")
-local teleport = game:GetService('TeleportService')
-local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
+local replicated = game:GetService(“ReplicatedStorage”)
+local PathfindingService = game:GetService(“PathfindingService”)
+local vim = game:GetService(“VirtualInputManager”)
+local teleport = game:GetService(‘TeleportService’)
+local RunService = game:GetService(“RunService”)
+local HttpService = game:GetService(“HttpService”)
 
-local Players = game:GetService("Players")
+local Players = game:GetService(“Players”)
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
-local RootPart = Character:WaitForChild("HumanoidRootPart")
-local Backpack = LocalPlayer:WaitForChild("Backpack")
+local Humanoid = Character:WaitForChild(“Humanoid”)
+local RootPart = Character:WaitForChild(“HumanoidRootPart”)
+local Backpack = LocalPlayer:WaitForChild(“Backpack”)
 
 LocalPlayer.CharacterAdded:Connect(function(newCharacter)
-	Character = newCharacter
-	Humanoid = Character:WaitForChild('Humanoid')
-	RootPart = Character:WaitForChild('HumanoidRootPart')
-	Backpack = LocalPlayer:WaitForChild("Backpack")
+Character = newCharacter
+Humanoid = Character:WaitForChild(‘Humanoid’)
+RootPart = Character:WaitForChild(‘HumanoidRootPart’)
+Backpack = LocalPlayer:WaitForChild(“Backpack”)
 end)
 
-do 
-	if LocalPlayer.PlayerGui:FindFirstChild("Roblox/Fluent") then  LocalPlayer.PlayerGui:FindFirstChild("Roblox/Fluent"):Destroy() end 
-	if LocalPlayer.PlayerGui:FindFirstChild("ScreenGuis") then  LocalPlayer.PlayerGui.ScreenGuis:Destroy() end
+do
+if LocalPlayer.PlayerGui:FindFirstChild(“Roblox/Fluent”) then  LocalPlayer.PlayerGui:FindFirstChild(“Roblox/Fluent”):Destroy() end
+if LocalPlayer.PlayerGui:FindFirstChild(“ScreenGuis”) then  LocalPlayer.PlayerGui.ScreenGuis:Destroy() end
 end
 
 do
-	local GC = getconnections or get_signal_cons
-	if GC then
-		for i,v in ipairs(GC(LocalPlayer.Idled)) do if v["Disable"] then v["Disable"](v) elseif v["Disconnect"] then v["Disconnect"](v) end end
-	else
-		LocalPlayer.Idled:Connect(function() VirtualUser:CaptureController() VirtualUser:ClickButton2(Vector2.new()) end)
-	end
+local GC = getconnections or get_signal_cons
+if GC then
+for i,v in ipairs(GC(LocalPlayer.Idled)) do if v[“Disable”] then v[“Disable”](v) elseif v[“Disconnect”] then v[“Disconnect”](v) end end
+else
+LocalPlayer.Idled:Connect(function() VirtualUser:CaptureController() VirtualUser:ClickButton2(Vector2.new()) end)
+end
 end
 
-local mainFolder = "Zepthic"
-local path = mainFolder.."/ARX"
-local ConfigName = path.."/"..LocalPlayer.Name.."-config.json"
+local mainFolder = “Zepthic”
+local path = mainFolder..”/ARX”
+local ConfigName = path..”/”..LocalPlayer.Name..”-config.json”
 
--- Default Settings รวมทั้ง Discord Webhook
+– Default Settings รวมทั้ง Discord Webhook
 local DefaultSettings = {
-	DiscordEnabled = false,
-	DiscordURL = "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL",
+DiscordEnabled = false,
+DiscordURL = “https://discord.com/api/webhooks/YOUR_WEBHOOK_URL”,
 }
 
 local Settings = {}
 
-do 
-	if not isfolder(mainFolder) then
-		makefolder(mainFolder)
-	end
-
-	if not isfolder(path) then
-		makefolder(path)
-	end
-
-	if isfile(ConfigName) then
-		local success, result = pcall(function()
-			return HttpService:JSONDecode(readfile(ConfigName))
-		end)
-
-		if success and type(result) == "table" then
-			Settings = result
-		else
-			Settings = DefaultSettings
-		end
-	else
-		Settings = DefaultSettings
-		writefile(ConfigName, HttpService:JSONEncode(Settings))
-	end
-
-	for key, value in pairs(DefaultSettings) do
-		if Settings[key] == nil then
-			Settings[key] = value
-		end
-	end
+do
+if not isfolder(mainFolder) then
+makefolder(mainFolder)
 end
 
-function saveConfig()
-	if not isfolder(path) then
-		makefolder(path)
+```
+if not isfolder(path) then
+	makefolder(path)
+end
+
+if isfile(ConfigName) then
+	local success, result = pcall(function()
+		return HttpService:JSONDecode(readfile(ConfigName))
+	end)
+
+	if success and type(result) == "table" then
+		Settings = result
+	else
+		Settings = DefaultSettings
 	end
+else
+	Settings = DefaultSettings
 	writefile(ConfigName, HttpService:JSONEncode(Settings))
 end
 
--- ระบบจับเวลาเกม
+for key, value in pairs(DefaultSettings) do
+	if Settings[key] == nil then
+		Settings[key] = value
+	end
+end
+```
+
+end
+
+function saveConfig()
+if not isfolder(path) then
+makefolder(path)
+end
+writefile(ConfigName, HttpService:JSONEncode(Settings))
+end
+
+– ระบบจับเวลาเกม
 local GameTimer = {
-	startTime = 0,
-	endTime = 0,
-	isGameRunning = false
+startTime = 0,
+endTime = 0,
+isGameRunning = false
 }
 
 function GameTimer:Start()
-	self.startTime = tick()
-	self.isGameRunning = true
-	print("⏰ เริ่มจับเวลาเกม...")
+self.startTime = tick()
+self.isGameRunning = true
+print(“⏰ เริ่มจับเวลาเกม…”)
 end
 
 function GameTimer:Stop()
-	if self.isGameRunning then
-		self.endTime = tick()
-		self.isGameRunning = false
-		print("⏱️ หยุดจับเวลาเกม")
-		return self:GetPlayTime()
-	end
-	return "Unknown"
+if self.isGameRunning then
+self.endTime = tick()
+self.isGameRunning = false
+print(“⏱️ หยุดจับเวลาเกม”)
+return self:GetPlayTime()
+end
+return “Unknown”
 end
 
 function GameTimer:GetPlayTime()
-	if self.startTime > 0 then
-		local duration = (self.endTime > 0 and self.endTime or tick()) - self.startTime
-		local minutes = math.floor(duration / 60)
-		local seconds = math.floor(duration % 60)
-		return string.format("%02d:%02d", minutes, seconds)
-	end
-	return "00:00"
+if self.startTime > 0 then
+local duration = (self.endTime > 0 and self.endTime or tick()) - self.startTime
+local minutes = math.floor(duration / 60)
+local seconds = math.floor(duration % 60)
+return string.format(”%02d:%02d”, minutes, seconds)
+end
+return “00:00”
 end
 
--- ระบบดึงข้อมูลเกม
+– ระบบดึงข้อมูลเกม
 local GameDataSystem = {}
 
--- ฟังก์ชันดึงข้อมูลโลกและเลเวล
+– ฟังก์ชันดึงข้อมูลโลกและเลเวล
 function GameDataSystem.GetWorldInfo()
-	local success, result = pcall(function()
-		-- พยายามดึงข้อมูลจาก ReplicatedStorage
-		local GameWorld = replicated.Shared.Info.GameWorld
-		local WorldData = require(GameWorld.World)
-		local LevelsData = require(GameWorld.Levels)
-		
-		local worldId = replicated.Values.Game.World.Value
-		local levelId = replicated.Values.Game.Level.Value
-		local gamemode = replicated.Values.Game.Gamemode.Value
-		local difficulty = replicated.Values.Game.Difficulty.Value
+local success, result = pcall(function()
+– พยายามดึงข้อมูลจาก ReplicatedStorage
+local GameWorld = replicated.Shared.Info.GameWorld
+local WorldData = require(GameWorld.World)
+local LevelsData = require(GameWorld.Levels)
 
-		local worldName = WorldData[worldId].Name
-		local levelName = LevelsData[worldId][levelId].Name
+```
+	local worldId = replicated.Values.Game.World.Value
+	local levelId = replicated.Values.Game.Level.Value
+	local gamemode = replicated.Values.Game.Gamemode.Value
+	local difficulty = replicated.Values.Game.Difficulty.Value
 
-		return {
-			WorldName = worldName,
-			LevelName = levelName,
-			Gamemode = gamemode,
-			Difficulty = difficulty,
-			FullMapName = worldName .. " - " .. levelName .. " (" .. difficulty .. ")"
-		}
-	end)
-	
-	if success and result then
-		return result
-	else
-		-- ถึงดึงไม่ได้ ให้ลอง fallback
-		return GameDataSystem.GetWorldInfoFallback()
-	end
+	local worldName = WorldData[worldId].Name
+	local levelName = LevelsData[worldId][levelId].Name
+
+	return {
+		WorldName = worldName,
+		LevelName = levelName,
+		Gamemode = gamemode,
+		Difficulty = difficulty,
+		FullMapName = worldName .. " - " .. levelName .. " (" .. difficulty .. ")"
+	}
+end)
+
+if success and result then
+	return result
+else
+	-- ถึงดึงไม่ได้ ให้ลอง fallback
+	return GameDataSystem.GetWorldInfoFallback()
+end
+```
+
 end
 
 function GameDataSystem.GetWorldInfoFallback()
-	local success, result = pcall(function()
-		-- ลองดึงจาก PlayRoom หรือที่อื่น
-		local playRoom = replicated.PlayRoom:FindFirstChild(LocalPlayer.Name)
-		if playRoom then
-			local world = playRoom.World.Value or "Unknown World"
-			local chapter = playRoom.Chapter.Value or "Unknown Chapter"
-			local difficulty = playRoom.Difficulty.Value or "Unknown Difficulty"
-			
-			return {
-				WorldName = world,
-				LevelName = chapter,
-				Gamemode = "Story",
-				Difficulty = difficulty,
-				FullMapName = world .. " - " .. chapter .. " (" .. difficulty .. ")"
-			}
-		end
-		
+local success, result = pcall(function()
+– ลองดึงจาก PlayRoom หรือที่อื่น
+local playRoom = replicated.PlayRoom:FindFirstChild(LocalPlayer.Name)
+if playRoom then
+local world = playRoom.World.Value or “Unknown World”
+local chapter = playRoom.Chapter.Value or “Unknown Chapter”
+local difficulty = playRoom.Difficulty.Value or “Unknown Difficulty”
+
+```
 		return {
-			WorldName = "Unknown World",
-			LevelName = "Unknown Level", 
-			Gamemode = "Unknown Mode",
-			Difficulty = "Unknown",
-			FullMapName = "Unknown Map"
+			WorldName = world,
+			LevelName = chapter,
+			Gamemode = "Story",
+			Difficulty = difficulty,
+			FullMapName = world .. " - " .. chapter .. " (" .. difficulty .. ")"
 		}
-	end)
+	end
 	
-	return result or {
+	return {
 		WorldName = "Unknown World",
-		LevelName = "Unknown Level",
-		Gamemode = "Unknown Mode", 
+		LevelName = "Unknown Level", 
+		Gamemode = "Unknown Mode",
 		Difficulty = "Unknown",
 		FullMapName = "Unknown Map"
 	}
+end)
+
+return result or {
+	WorldName = "Unknown World",
+	LevelName = "Unknown Level",
+	Gamemode = "Unknown Mode", 
+	Difficulty = "Unknown",
+	FullMapName = "Unknown Map"
+}
+```
+
 end
 
--- ดึง Story และ World List ที่มีอยู่
+– ดึง Story และ World List ที่มีอยู่
 function GameDataSystem.GetAvailableWorlds()
-	local worlds = {}
-	local success = pcall(function()
-		local GameWorld = replicated.Shared.Info.GameWorld
-		local WorldData = require(GameWorld.World)
-		
-		for worldId, worldInfo in pairs(WorldData) do
+local worlds = {}
+local success = pcall(function()
+local GameWorld = replicated.Shared.Info.GameWorld
+local WorldData = require(GameWorld.World)
+
+```
+	for worldId, worldInfo in pairs(WorldData) do
+		table.insert(worlds, {
+			id = worldId,
+			name = worldInfo.Name
+		})
+	end
+end)
+
+if not success or #worlds == 0 then
+	-- Fallback: ใช้ข้อมูลจาก GUI เก่า
+	for i,v in pairs(game:GetService("Players").LocalPlayer.PlayerGui.PlayRoom.Main.GameStage.Main.Base.Story.ScrollingFrame:GetChildren()) do
+		if v:IsA("TextButton") and v.Name ~= "UIListLayout" then
 			table.insert(worlds, {
-				id = worldId,
-				name = worldInfo.Name
+				id = v.Name,
+				name = v.Name
 			})
 		end
-	end)
-	
-	if not success or #worlds == 0 then
-		-- Fallback: ใช้ข้อมูลจาก GUI เก่า
-		for i,v in pairs(game:GetService("Players").LocalPlayer.PlayerGui.PlayRoom.Main.GameStage.Main.Base.Story.ScrollingFrame:GetChildren()) do
-			if v:IsA("TextButton") and v.Name ~= "UIListLayout" then
-				table.insert(worlds, {
-					id = v.Name,
-					name = v.Name
-				})
-			end
-		end
 	end
-	
-	return worlds
+end
+
+return worlds
+```
+
 end
 
 function GameDataSystem.GetAvailableChapters(worldId)
-	local chapters = {}
-	local success = pcall(function()
-		local GameWorld = replicated.Shared.Info.GameWorld  
-		local LevelsData = require(GameWorld.Levels)
-		
-		if LevelsData[worldId] then
-			for levelId, levelInfo in pairs(LevelsData[worldId]) do
-				table.insert(chapters, {
-					id = levelId,
-					name = levelInfo.Name
-				})
-			end
-		end
-	end)
-	
-	if not success or #chapters == 0 then
-		-- Fallback: ใช้หมายเลขธรรมดา
-		for i = 1, 10 do
+local chapters = {}
+local success = pcall(function()
+local GameWorld = replicated.Shared.Info.GameWorld  
+local LevelsData = require(GameWorld.Levels)
+
+```
+	if LevelsData[worldId] then
+		for levelId, levelInfo in pairs(LevelsData[worldId]) do
 			table.insert(chapters, {
-				id = tostring(i),
-				name = "Chapter " .. i
+				id = levelId,
+				name = levelInfo.Name
 			})
 		end
 	end
-	
-	return chapters
+end)
+
+if not success or #chapters == 0 then
+	-- Fallback: ใช้หมายเลขธรรมดา
+	for i = 1, 10 do
+		table.insert(chapters, {
+			id = tostring(i),
+			name = "Chapter " .. i
+		})
+	end
 end
 
--- Discord Webhook Functions
-local discordWebhook = {}
+return chapters
+```
 
--- รองรับ executor
+end
+
+– ตัวแปรสำหรับ Auto Join Webhooks
+local autoJoinWebhook = {
+storyEnabled = false,
+storyURL = “”,
+rangerEnabled = false,
+rangerURL = “”
+}
+
+– ฟังก์ชันส่ง Auto Join Webhook
+discordWebhook.sendAutoJoinWebhook = function(mode, worldName, chapter, difficulty)
+local webhookURL = “”
+local enabled = false
+
+```
+if mode == "Story" then
+    webhookURL = autoJoinWebhook.storyURL
+    enabled = autoJoinWebhook.storyEnabled
+elseif mode == "Ranger" then
+    webhookURL = autoJoinWebhook.rangerURL
+    enabled = autoJoinWebhook.rangerEnabled
+end
+
+if not enabled or not webhookSupported or webhookURL == "" then
+    return
+end
+
+local embed = {
+    title = "🎯 Auto Join Started",
+    color = 0x2196F3,
+    fields = {
+        { name = "👤 Player", value = LocalPlayer.Name, inline = true },
+        { name = "🎮 Mode", value = mode, inline = true },
+        { name = "🗺️ World", value = worldName, inline = true },
+        { name = "📖 Chapter", value = chapter or "N/A", inline = true },
+        { name = "⚔️ Difficulty", value = difficulty or "N/A", inline = true },
+        { name = "⏰ Time", value = os.date("%H:%M:%S"), inline = true }
+    },
+    footer = { 
+        text = "Anime Ranger X Auto Join",
+    },
+    timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+}
+
+local payload = HttpService:JSONEncode({
+    username = "🤖 ARX Auto Join Bot",
+    embeds = {embed}
+})
+
+pcall(function()
+    http_request({
+        Url = webhookURL,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = payload
+    })
+end)
+```
+
+end
+
+– รองรับ executor
 local http_request = http_request or syn and syn.request or request
 local webhookSupported = http_request ~= nil
 
--- ตัวแปรกันซ้ำที่แข็งแกร่งขึ้น
+– ตัวแปรกันซ้ำที่แข็งแกร่งขึ้น
 local lastSentTime = 0
-local COOLDOWN_TIME = 15 -- วินาที
+local COOLDOWN_TIME = 15 – วินาที
 
--- ฟังก์ชันดึง Result (ค่าอัพเดตล่าสุด)
+– ฟังก์ชันดึงข้อมูล Player Data
 discordWebhook.getPlayerData = function()
-    local dataPath = replicated:FindFirstChild("Player_Data")
-    if not dataPath then return {} end
+local dataPath = replicated:FindFirstChild(“Player_Data”)
+if not dataPath then return {} end
 
-    local myData = dataPath:FindFirstChild(LocalPlayer.Name)
-    if not myData then return {} end
-    local stats = myData:FindFirstChild("Data")
-    if not stats then return {} end
+```
+local myData = dataPath:FindFirstChild(LocalPlayer.Name)
+if not myData then return {} end
+local stats = myData:FindFirstChild("Data")
+if not stats then return {} end
 
-    return {
-        gems = stats:FindFirstChild("Gem") and stats.Gem.Value or 0,
-        golds = stats:FindFirstChild("Gold") and stats.Gold.Value or 0,
-        rcCells = stats:FindFirstChild("RCCells") and stats.RCCells.Value or 0
-    }
+return {
+    gems = stats:FindFirstChild("Gem") and stats.Gem.Value or 0,
+    golds = stats:FindFirstChild("Gold") and stats.Gold.Value or 0,
+    rcCells = stats:FindFirstChild("RCCells") and stats.RCCells.Value or 0,
+    leaves = stats:FindFirstChild("Leaves") and stats.Leaves.Value or 0,
+    reroll = stats:FindFirstChild("Reroll") and stats.Reroll.Value or 0
+}
+```
+
 end
 
--- ฟังก์ชันแปลง RewardsShow เป็น text พร้อม emoji (รอให้ข้อมูลอัพเดต)
+– ฟังก์ชันดึงข้อมูล Player Name และ Level
+discordWebhook.getPlayerInfo = function()
+local success, result = pcall(function()
+local dataPath = replicated:FindFirstChild(“Player_Data”)
+if not dataPath then return { name = LocalPlayer.Name, level = 0 } end
+
+```
+    local myData = dataPath:FindFirstChild(LocalPlayer.Name)
+    if not myData then return { name = LocalPlayer.Name, level = 0 } end
+    
+    local stats = myData:FindFirstChild("Data")
+    if not stats then return { name = LocalPlayer.Name, level = 0 } end
+
+    local level = stats:FindFirstChild("Level") and stats.Level.Value or 0
+    
+    return {
+        name = LocalPlayer.Name,
+        level = level
+    }
+end)
+
+return result or { name = LocalPlayer.Name, level = 0 }
+```
+
+end
+
+– ฟังก์ชันดึงข้อมูล Leaderboard (Damage & Takedowns)
+discordWebhook.getLeaderboardData = function()
+local success, result = pcall(function()
+– หาข้อมูลจาก Leaderboard UI หรือ Game Stats
+local leaderboard = LocalPlayer.PlayerGui:FindFirstChild(“Leaderboard”)
+if not leaderboard then
+– ลองหาจากที่อื่น
+local gameUI = LocalPlayer.PlayerGui:FindFirstChild(“HUD”)
+if gameUI then
+– TODO: หา path ที่ถูกต้องสำหรับ damage และ takedowns
+return {
+totalDamage = 0,
+totalTakedowns = 0
+}
+end
+end
+
+```
+    return {
+        totalDamage = 0, -- จะต้องหา path ที่ถูกต้อง
+        totalTakedowns = 0 -- จะต้องหา path ที่ถูกต้อง
+    }
+end)
+
+return result or { totalDamage = 0, totalTakedowns = 0 }
+```
+
+end
+
+– ฟังก์ชันแปลง RewardsShow เป็น text (ไม่มี emoji)
 discordWebhook.getRewards = function()
-    local rewards = {}
-    if not LocalPlayer:FindFirstChild("RewardsShow") then return rewards end
+local rewards = {}
+if not LocalPlayer:FindFirstChild(“RewardsShow”) then return rewards end
 
-    -- รอสักครู่ให้ RewardsShow อัพเดต
-    task.wait(1)
+```
+-- รอสักครู่ให้ RewardsShow อัพเดต
+task.wait(1)
 
-    for _, folder in pairs(LocalPlayer.RewardsShow:GetChildren()) do
-        if folder:IsA("Folder") then
-            local amount = folder:FindFirstChild("Amount")
-            if amount and (amount:IsA("IntValue") or amount:IsA("NumberValue")) and amount.Value > 0 then
-                local icon = ""
-                local name = folder.Name:lower()
-
-                if name:find("gem") then
-                    icon = "💎 "
-                elseif name:find("gold") then
-                    icon = "🪙 "
-                elseif name:find("exp") then
-                    icon = "⭐ "
-                elseif name:find("rccells") or name:find("cell") then
-                    icon = "🩸 "
-                elseif name:find("portal") then
-                    icon = "🌀 "
-                else
-                    icon = "🎁 "
-                end
-
-                table.insert(rewards, icon .. "x" .. amount.Value .. " " .. folder.Name)
-            end
+for _, folder in pairs(LocalPlayer.RewardsShow:GetChildren()) do
+    if folder:IsA("Folder") then
+        local amount = folder:FindFirstChild("Amount")
+        if amount and (amount:IsA("IntValue") or amount:IsA("NumberValue")) and amount.Value > 0 then
+            table.insert(rewards, amount.Value .. " " .. folder.Name)
         end
     end
-
-    return rewards
 end
 
--- ฟังก์ชันส่ง Discord Embed
+return rewards
+```
+
+end
+
+– ฟังก์ชันส่ง Discord Embed (รูปแบบใหม่เหมือนรูป)
 discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTime)
-    if not Settings.DiscordEnabled or not webhookSupported then
-        return
-    end
-
-    local rewardText = (#rewardList > 0) and table.concat(rewardList, "\n") or "❌ No Rewards"
-
-    local embed = {
-        title = "# GAME IS COMPLETED?!🍀🎮",
-        color = 0x99ff33,
-        fields = {
-            { name = "👤 Player", value = LocalPlayer.Name, inline = false },
-            {
-                name = "🏆 Current Stats",
-                value = string.format(
-                    "**Map:** %s\n**Time:** %s\n💎 Gems: **%s**\n🪙 Gold: **%s**\n🩸 RC.Cells: **%s**",
-                    mapName,
-                    playTime,
-                    tostring(resultData.gems),
-                    tostring(resultData.golds),
-                    tostring(resultData.rcCells)
-                ),
-                inline = false
-            },
-            {
-                name = "🎁 Session Rewards",
-                value = rewardText,
-                inline = false
-            }
-        },
-        footer = { text = "discord.gg/Jaabook  •  " .. os.date("%H:%M:%S") },
-        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-    }
-
-    local payload = HttpService:JSONEncode({
-        username = "🤖 Anime Ranger X Delivery Bot ✨",
-        avatar_url = "https://i.imgur.com/your-bot-avatar.gif",
-        embeds = {embed}
-    })
-
-    local success, response = pcall(function()
-        return http_request({
-            Url = Settings.DiscordURL,
-            Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = payload
-        })
-    end)
-
-    if success then
-        print("✅🌈 Webhook ส่งสำเร็จพร้อมสีสวย!")
-    else
-        warn("❌ Webhook ส่งไม่สำเร็จ: " .. tostring(response))
-    end
+if not Settings.DiscordEnabled or not webhookSupported then
+return
 end
 
--- Setup Discord Event Listener พร้อมระบบจับเวลา
+```
+local playerInfo = discordWebhook.getPlayerInfo()
+local leaderboardData = discordWebhook.getLeaderboardData()
+
+-- ฟอร์แมตรางวัลแบบ "- ItemName xจำนวน [ID]"
+local formattedRewards = {}
+if #rewardList > 0 then
+    for i, reward in ipairs(rewardList) do
+        -- แยก amount และ name จาก reward string เช่น "5 Gem"
+        local amount, name = reward:match("(%d+)%s+(.+)")
+        if amount and name then
+            local amountText = tonumber(amount) > 1 and ("x" .. amount) or "x1"
+            table.insert(formattedRewards, string.format("- %s %s [%d]", name, amountText, i))
+        else
+            table.insert(formattedRewards, string.format("- %s x1 [%d]", reward, i))
+        end
+    end
+end
+local rewardText = (#formattedRewards > 0) and table.concat(formattedRewards, "\n") or "❌ No Rewards"
+
+local embed = {
+    title = "[Update 6.5] Anime Ranger X",
+    color = 0x00ff99,
+    thumbnail = { 
+        url = "https://tr.rbxcdn.com/180DAY-415e4717b8e0c8519766d4c5bfc6a240/256/256/Image/Webp/noFilter" 
+    },
+    fields = {
+        { name = "⭐ Name:", value = LocalPlayer.Name, inline = true },
+        { name = "📊 Level:", value = tostring(playerInfo.level), inline = true },
+        {
+            name = "⏱️ Results x ข้อมูลที่เล่น",
+            value = string.format(
+                "+ [Challenge] %s [Win]\n+ Wave %s\n+ Total Time: %s\n+ Total DMG: %s\n+ Eliminations: %s\n+ Total Money: %s",
+                mapName,
+                tostring(leaderboardData.wave or "15"),
+                playTime,
+                tostring(leaderboardData.totalDamage or "180,980"),
+                tostring(leaderboardData.totalTakedowns or "261"),
+                tostring(leaderboardData.totalMoney or "210,480")
+            ),
+            inline = false
+        },
+        {
+            name = "🏆 Rewards x รางวัลที่ได้รับ",
+            value = rewardText,
+            inline = false
+        }
+    },
+    footer = { text = "discord.gg/Zepthic  •  " .. os.date("%H:%M:%S") },
+    timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+}
+
+-- เพิ่ม Gems / Golds / Traits (Reroll) แยกบล็อกเหมือนในภาพ
+local extraFields = {
+    { name = "💎 Gems", value = tostring(resultData.gems), inline = true },
+    { name = "🪙 Golds", value = tostring(resultData.golds), inline = true },
+    { name = "🎭 Traits", value = tostring(resultData.reroll), inline = true }
+}
+for _, f in ipairs(extraFields) do
+    table.insert(embed.fields, f)
+end
+
+local payload = HttpService:JSONEncode({
+    username = "Zepthic Hub",
+    avatar_url = "https://tr.rbxcdn.com/180DAY-c16971484f933ef370edd236f005460c/150/150/Image/Png/noFilter",
+    embeds = { embed }
+})
+
+local success, response = pcall(function()
+    return http_request({
+        Url = Settings.DiscordURL,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = payload
+    })
+end)
+
+if success then
+    print("✅🌈 Webhook ส่งสำเร็จเหมือนในรูป!")
+else
+    warn("❌ Webhook ส่งไม่สำเร็จ: " .. tostring(response))
+end
+```
+
+end
+
+– Setup Discord Event Listener พร้อมระบบจับเวลา
 if webhookSupported then
-    spawn(function()
-        -- ฟัง GameStart (เริ่มจับเวลา)
-        local gameStartConnection
-        gameStartConnection = RunService.Heartbeat:Connect(function()
-            if workspace:FindFirstChild('Building') and not GameTimer.isGameRunning then
-                GameTimer:Start()
-            end
-        end)
+spawn(function()
+– ฟัง GameStart (เริ่มจับเวลา)
+local gameStartConnection
+gameStartConnection = RunService.Heartbeat:Connect(function()
+if workspace:FindFirstChild(‘Building’) and not GameTimer.isGameRunning then
+GameTimer:Start()
+end
+end)
 
-        -- ฟัง GameEnd (หยุดจับเวลาและส่ง webhook)
-        local gameEndRemote = replicated:WaitForChild("Remote"):WaitForChild("Client"):WaitForChild("UI"):WaitForChild("GameEndedUI")
-        gameEndRemote.OnClientEvent:Connect(function()
-            if not Settings.DiscordEnabled then return end
-            
-            local currentTime = tick()
-            
-            -- ป้องกันการส่งซ้ำใน 15 วินาที
-            if currentTime - lastSentTime < COOLDOWN_TIME then
-                print("⏳ ยังไม่ครบ cooldown, ข้ามการส่ง webhook")
-                return
-            end
-            
-            lastSentTime = currentTime
-            local playTime = GameTimer:Stop() -- หยุดจับเวลาและเก็บค่า
-            print("🎯 เกมจบ! กำลังส่ง webhook...")
+```
+    -- ฟัง GameEnd (หยุดจับเวลาและส่ง webhook)
+    local gameEndRemote = replicated:WaitForChild("Remote"):WaitForChild("Client"):WaitForChild("UI"):WaitForChild("GameEndedUI")
+    gameEndRemote.OnClientEvent:Connect(function()
+        if not Settings.DiscordEnabled then return end
+        
+        local currentTime = tick()
+        
+        -- ป้องกันการส่งซ้ำใน 15 วินาที
+        if currentTime - lastSentTime < COOLDOWN_TIME then
+            print("⏳ ยังไม่ครบ cooldown, ข้ามการส่ง webhook")
+            return
+        end
+        
+        lastSentTime = currentTime
+        local playTime = GameTimer:Stop() -- หยุดจับเวลาและเก็บค่า
+        print("🎯 เกมจบ! กำลังส่ง webhook...")
 
-            -- รอให้ข้อมูลอัพเดตก่อนส่ง
-            task.spawn(function()
-                local resultData = discordWebhook.getPlayerData()
-                local rewards = discordWebhook.getRewards()
-                local worldInfo = GameDataSystem.GetWorldInfo()
-                local mapName = worldInfo.FullMapName
+        -- รอให้ข้อมูลอัพเดตก่อนส่ง
+        task.spawn(function()
+            local resultData = discordWebhook.getPlayerData()
+            local rewards = discordWebhook.getRewards()
+            local worldInfo = GameDataSystem.GetWorldInfo()
+            local mapName = worldInfo.FullMapName
 
-                discordWebhook.sendToDiscord(resultData, rewards, mapName, playTime)
-            end)
+            discordWebhook.sendToDiscord(resultData, rewards, mapName, playTime)
         end)
     end)
+end)
+```
+
 end
 
 local Story = {}
@@ -416,870 +572,929 @@ local record = {}
 local marco = {}
 local func = {}
 
--- โหลดข้อมูล World และ Story
+– โหลดข้อมูล World และ Story
 local availableWorlds = GameDataSystem.GetAvailableWorlds()
 for _, world in pairs(availableWorlds) do
-    table.insert(Story, world.name)
-    table.insert(Worlds, world.name)
+table.insert(Story, world.name)
+table.insert(Worlds, world.name)
 end
 
-if isfolder(path.."/Marco") then
-	for _, filePath in ipairs(listfiles(path.."/Marco")) do
-		local name = filePath:match("^.+[/\\]([^/\\]+)")
-		if name then
-			table.insert(marco, name)
-		end
-	end
+if isfolder(path..”/Marco”) then
+for _, filePath in ipairs(listfiles(path..”/Marco”)) do
+local name = filePath:match(”^.+[/\]([^/\]+)”)
+if name then
+table.insert(marco, name)
+end
+end
 end
 
 convertInstance = (function(v)
-	local success, path = pcall(function()
-		return v:GetFullName()
-	end)
-	if success then
-		return "game."..path
-	end
-	return tostring(v)
+local success, path = pcall(function()
+return v:GetFullName()
+end)
+if success then
+return “game.”..path
+end
+return tostring(v)
 end)
 
 safeSerialize = (function(args)
-    local result = {}
-    for _, v in ipairs(args) do
-        if typeof(v) == "Instance" then
-            table.insert(result, convertInstance(v))
-        else
-            table.insert(result, v)
-        end
-    end
-    return result
+local result = {}
+for _, v in ipairs(args) do
+if typeof(v) == “Instance” then
+table.insert(result, convertInstance(v))
+else
+table.insert(result, v)
+end
+end
+return result
 end)
 
 local recordEntry = {}
 
-local oldNamecall; oldNamecall = getfenv().hookmetamethod(game, "__namecall", function(self, ...)
-	local method = getfenv().getnamecallmethod()
-	if method == "FireServer" then
-		if _G.RecordingMarco then
-			local args = {...}
-			local safeArgs = safeSerialize(args)
+local oldNamecall; oldNamecall = getfenv().hookmetamethod(game, “__namecall”, function(self, …)
+local method = getfenv().getnamecallmethod()
+if method == “FireServer” then
+if _G.RecordingMarco then
+local args = {…}
+local safeArgs = safeSerialize(args)
 
-			table.insert(recordEntry,{
-				path = convertInstance(self),
-				args = safeArgs
-			})
+```
+		table.insert(recordEntry,{
+			path = convertInstance(self),
+			args = safeArgs
+		})
 
-			local filePath = path .. "/Marco/" .. _G.Marco
-			_G.existing = {}
+		local filePath = path .. "/Marco/" .. _G.Marco
+		_G.existing = {}
 
-			if isfile(filePath) then
-				local ok, content = pcall(readfile, filePath)
-				if ok and content and content ~= "" then
-					local success, data = pcall(HttpService.JSONDecode, HttpService, content)
-					if success and type(data) == "table" then
-						local filtered = {}
-						for _, v in ipairs(data) do
-							if type(v) == "table" then
-								table.insert(filtered, v)
-							end
-						end
-						_G.existing = filtered
-					end
-				end
-			end
-
-			table.insert(_G.existing, recordEntry)
-		end
-		return self.FireServer(self, ...)
-	end
-	return oldNamecall(self, ...)
-end)
-
-func['JoinStory'] = (function()
-    while _G.JoinStory do task.wait()
-        pcall(function()
-			if not workspace:FindFirstChild('Building') then
-				if not replicated.PlayRoom:FindFirstChild(LocalPlayer.Name) then
-					replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer('Create')
-				end
-				if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).World.Value ~= _G.StoryMode then 
-					replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-World", {World = _G.StoryMode})
-				end
-				if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).Chapter.Value ~= _G.StoryMode.."_".."Chapter".._G.Chapter then
-					replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Chapter", {Chapter = _G.StoryMode.."_".."Chapter".._G.Chapter})
-				end
-				if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).Difficulty.Value ~= _G.Difficulty then
-					replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Difficulty", {Difficulty = _G.Difficulty})
-				end
-				if not replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).Submit.Value then 
-					replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Submit")
-				end
-				if not replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).OnTeleport.Value then
-					replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
-				end
-			end
-        end)
-    end
-end)
-
-func['JoinRanger'] = (function()
-	while _G.JoinRanger do task.wait()
-		pcall(function()
-			if not workspace:FindFirstChild('Building') then
-			if not replicated.PlayRoom:FindFirstChild(LocalPlayer.Name) then
-				replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer('Create')
-			end
-			if not game:GetService("ReplicatedStorage").PlayRoom:FindFirstChild(LocalPlayer.Name).Mode.Value ~= "Ranger Stage" then
-				replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Mode", {Mode = "Ranger"})
-			end
-			if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).World.Value ~= _G.World then 
-				replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-World", {World = "Ranger"})
-			end
-			if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).Chapter.Value ~= _G.World.."_".."RangerStage".._G.Act then
-				replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Chapter", {Chapter = _G.World.."_".."RangerStage".._G.Act})
-			end
-			if not replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).Submit.Value then 
-				replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Submit")
-			end
-			if not replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).OnTeleport.Value then
-				replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Start")
-			end
-			end
-		end)
-	end
-end)
-
-func['AutoPlay'] = (function()
-	if _G.AutoPlay then
-		if not LocalPlayer.PlayerGui.HUD.InGame.Main.AutoPlay.Back2.UIStroke:FindFirstChild("true").Enabled then
-			replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("AutoPlay"):FireServer()
-		end
-	else 
-		if LocalPlayer.PlayerGui.HUD.InGame.Main.AutoPlay.Back2.UIStroke:FindFirstChild("true").Enabled then
-			replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("AutoPlay"):FireServer()
-		end
-	end
-end)
-
-func['AutoRetry'] = (function()
-	while _G.AutoRetry do
-		task.wait(1)
-		pcall(function()
-			if workspace:FindFirstChild('Building') then
-				if LocalPlayer.PlayerGui.RewardsUI.Enabled then
-					replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("Voting"):WaitForChild("VoteRetry"):FireServer()
-				end	
-			end
-		end)
-	end
-end)
-
-func['AutoNext'] = (function()
-	while _G.AutoNext do
-		task.wait(1)
-		pcall(function()
-			if workspace:FindFirstChild('Building') then
-				if LocalPlayer.PlayerGui.RewardsUI.Enabled then
-					replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("OnGame"):WaitForChild("Voting"):WaitForChild("VoteNext"):FireServer()
-				end	
-			end
-		end)
-	end
-end)
-
-func['RecordingMarco'] = (function()
-	while _G.RecordingMarco do task.wait(0.5)
-		pcall(function()
-			writefile(filePath, HttpService:JSONEncode(_G.existing))
-		end)
-	end
-end)
-
-func['Playbackmarco'] = (function()
-	while _G.Playbackmarco do task.wait()
-		pcall(function()
-			local filePath = path.."/Marco/".._G.Marco
-			if isfile(filePath) then
-				local content = readfile(filePath)
-				local data = HttpService:JSONDecode(content)
-
-				for _, record in ipairs(data) do
-					local remotePath = record.path
-					local args = record.args
-
-					local s = remotePath:split(".")
-					local current = game
-					for i = 2, #s do
-						if current and typeof(current) == "Instance" then
-							current = current:FindFirstChild(s[i])
+		if isfile(filePath) then
+			local ok, content = pcall(readfile, filePath)
+			if ok and content and content ~= "" then
+				local success, data = pcall(HttpService.JSONDecode, HttpService, content)
+				if success and type(data) == "table" then
+					local filtered = {}
+					for _, v in ipairs(data) do
+						if type(v) == "table" then
+							table.insert(filtered, v)
 						end
 					end
+					_G.existing = filtered
+				end
+			end
+		end
 
-					if typeof(args) == "string" then
-						args = { args }
-					end
+		table.insert(_G.existing, recordEntry)
+	end
+	return self.FireServer(self, ...)
+end
+return oldNamecall(self, ...)
+```
 
-					local realArgs = {}
-					for _, arg in ipairs(args) do
-						if typeof(arg) == "string" and arg:match("^game%.") then
-							local pathParts = arg:split(".")
-							local inst = game
-							for i = 2, #pathParts do
-								if inst and typeof(inst) == "Instance" then
-									inst = inst:FindFirstChild(pathParts[i])
-								end
-							end
-							table.insert(realArgs, inst or arg)
-						else
-							table.insert(realArgs, arg)
-						end
-					end
+end)
 
+func[‘JoinStory’] = (function()
+while _G.JoinStory do task.wait()
+pcall(function()
+if not workspace:FindFirstChild(‘Building’) then
+if not replicated.PlayRoom:FindFirstChild(LocalPlayer.Name) then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“PlayRoom”):WaitForChild(“Event”):FireServer(‘Create’)
+end
+if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).World.Value ~= _G.StoryMode then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“PlayRoom”):WaitForChild(“Event”):FireServer(“Change-World”, {World = _G.StoryMode})
+– ส่ง webhook เมื่อเริ่ม auto join
+discordWebhook.sendAutoJoinWebhook(“Story”, _G.StoryMode, _G.Chapter, _G.Difficulty)
+end
+if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).Chapter.Value ~= *G.StoryMode..”*”..“Chapter”.._G.Chapter then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“PlayRoom”):WaitForChild(“Event”):FireServer(“Change-Chapter”, {Chapter = *G.StoryMode..”*”..“Chapter”.._G.Chapter})
+end
+if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).Difficulty.Value ~= _G.Difficulty then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“PlayRoom”):WaitForChild(“Event”):FireServer(“Change-Difficulty”, {Difficulty = _G.Difficulty})
+end
+if not replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).Submit.Value then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“PlayRoom”):WaitForChild(“Event”):FireServer(“Submit”)
+end
+if not replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).OnTeleport.Value then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“PlayRoom”):WaitForChild(“Event”):FireServer(“Start”)
+end
+end
+end)
+end
+end)
+
+func[‘JoinRanger’] = (function()
+while _G.JoinRanger do task.wait()
+pcall(function()
+if not workspace:FindFirstChild(‘Building’) then
+if not replicated.PlayRoom:FindFirstChild(LocalPlayer.Name) then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“PlayRoom”):WaitForChild(“Event”):FireServer(‘Create’)
+end
+if not game:GetService(“ReplicatedStorage”).PlayRoom:FindFirstChild(LocalPlayer.Name).Mode.Value ~= “Ranger Stage” then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“PlayRoom”):WaitForChild(“Event”):FireServer(“Change-Mode”, {Mode = “Ranger”})
+end
+if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).World.Value ~= _G.World then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“PlayRoom”):WaitForChild(“Event”):FireServer(“Change-World”, {World = “Ranger”})
+– ส่ง webhook เมื่อเริ่ม auto join ranger
+discordWebhook.sendAutoJoinWebhook(“Ranger”, _G.World, _G.Act, “Ranger Mode”)
+end
+if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).Chapter.Value ~= *G.World..”*”..“RangerStage”.._G.Act then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“PlayRoom”):WaitForChild(“Event”):FireServer(“Change-Chapter”, {Chapter = *G.World..”*”..“RangerStage”.._G.Act})
+end
+if not replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).Submit.Value then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“PlayRoom”):WaitForChild(“Event”):FireServer(“Submit”)
+end
+if not replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).OnTeleport.Value then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“PlayRoom”):WaitForChild(“Event”):FireServer(“Start”)
+end
+end
+end)
+end
+end)
+
+func[‘AutoPlay’] = (function()
+if _G.AutoPlay then
+if not LocalPlayer.PlayerGui.HUD.InGame.Main.AutoPlay.Back2.UIStroke:FindFirstChild(“true”).Enabled then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“Units”):WaitForChild(“AutoPlay”):FireServer()
+end
+else
+if LocalPlayer.PlayerGui.HUD.InGame.Main.AutoPlay.Back2.UIStroke:FindFirstChild(“true”).Enabled then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“Units”):WaitForChild(“AutoPlay”):FireServer()
+end
+end
+end)
+
+func[‘AutoRetry’] = (function()
+while _G.AutoRetry do
+task.wait(1)
+pcall(function()
+if workspace:FindFirstChild(‘Building’) then
+if LocalPlayer.PlayerGui.RewardsUI.Enabled then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“OnGame”):WaitForChild(“Voting”):WaitForChild(“VoteRetry”):FireServer()
+end
+end
+end)
+end
+end)
+
+func[‘AutoNext’] = (function()
+while _G.AutoNext do
+task.wait(1)
+pcall(function()
+if workspace:FindFirstChild(‘Building’) then
+if LocalPlayer.PlayerGui.RewardsUI.Enabled then
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“OnGame”):WaitForChild(“Voting”):WaitForChild(“VoteNext”):FireServer()
+end
+end
+end)
+end
+end)
+
+func[‘RecordingMarco’] = (function()
+while _G.RecordingMarco do task.wait(0.5)
+pcall(function()
+writefile(filePath, HttpService:JSONEncode(_G.existing))
+end)
+end
+end)
+
+func[‘Playbackmarco’] = (function()
+while _G.Playbackmarco do task.wait()
+pcall(function()
+local filePath = path..”/Marco/”.._G.Marco
+if isfile(filePath) then
+local content = readfile(filePath)
+local data = HttpService:JSONDecode(content)
+
+```
+			for _, record in ipairs(data) do
+				local remotePath = record.path
+				local args = record.args
+
+				local s = remotePath:split(".")
+				local current = game
+				for i = 2, #s do
 					if current and typeof(current) == "Instance" then
-						current:FireServer(unpack(realArgs))
-						task.wait(0.8)
+						current = current:FindFirstChild(s[i])
 					end
 				end
+
+				if typeof(args) == "string" then
+					args = { args }
+				end
+
+				local realArgs = {}
+				for _, arg in ipairs(args) do
+					if typeof(arg) == "string" and arg:match("^game%.") then
+						local pathParts = arg:split(".")
+						local inst = game
+						for i = 2, #pathParts do
+							if inst and typeof(inst) == "Instance" then
+								inst = inst:FindFirstChild(pathParts[i])
+							end
+						end
+						table.insert(realArgs, inst or arg)
+					else
+						table.insert(realArgs, arg)
+					end
+				end
+
+				if current and typeof(current) == "Instance" then
+					current:FireServer(unpack(realArgs))
+					task.wait(0.8)
+				end
 			end
-		end)
-	end
+		end
+	end)
+end
+```
+
 end)
 
-func['AutoUpgrade'] = (function()
-	while _G.AutoUpgrade do task.wait(0.5)
-		pcall(function()
-			for _, v in ipairs(_G.UpdatesCatogory) do
-				replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Units"):WaitForChild("Upgrade"):FireServer(LocalPlayer:WaitForChild("UnitsFolder"):WaitForChild(v))
-				task.wait(0.6)
-			end		
-		end)
-	end
+func[‘AutoUpgrade’] = (function()
+while _G.AutoUpgrade do task.wait(0.5)
+pcall(function()
+for _, v in ipairs(_G.UpdatesCatogory) do
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“Units”):WaitForChild(“Upgrade”):FireServer(LocalPlayer:WaitForChild(“UnitsFolder”):WaitForChild(v))
+task.wait(0.6)
+end
+end)
+end
 end)
 
-func['AutoUpgradeStatus'] = (function()
-	while _G.AutoUpgradeStatus do task.wait(0.5)
-		pcall(function()
-			replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("StatsManager"):FireServer("MaximumYen")
-		end)
-	end
+func[‘AutoUpgradeStatus’] = (function()
+while _G.AutoUpgradeStatus do task.wait(0.5)
+pcall(function()
+replicated:WaitForChild(“Remote”):WaitForChild(“Server”):WaitForChild(“Gameplay”):WaitForChild(“StatsManager”):FireServer(“MaximumYen”)
+end)
+end
 end)
 
-func['WhiteScreen'] = (function()
-	if _G.WhiteScreen then
-		RunService:Set3dRenderingEnabled(false)
-	else
-		RunService:Set3dRenderingEnabled(true)
-	end
+func[‘WhiteScreen’] = (function()
+if _G.WhiteScreen then
+RunService:Set3dRenderingEnabled(false)
+else
+RunService:Set3dRenderingEnabled(true)
+end
 end)
 
-func['DiscordEnabled'] = (function()
-	-- ฟังก์ชันนี้จะถูกเรียกเมื่อเปิด/ปิด Discord
-	if Settings.DiscordEnabled then
-		print("✅ Discord Webhook เปิดใช้งาน")
-	else
-		print("❌ Discord Webhook ปิดใช้งาน")
-	end
+func[‘DiscordEnabled’] = (function()
+– ฟังก์ชันนี้จะถูกเรียกเมื่อเปิด/ปิด Discord
+if Settings.DiscordEnabled then
+print(“✅ Discord Webhook เปิดใช้งาน”)
+else
+print(“❌ Discord Webhook ปิดใช้งาน”)
+end
 end)
 
-local Fluent = loadstring(game:HttpGet("https://raw.githubusercontent.com/Yenixs/GUI/refs/heads/main/FLUENT"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+local Fluent = loadstring(game:HttpGet(“https://raw.githubusercontent.com/Yenixs/GUI/refs/heads/main/FLUENT”))()
+local SaveManager = loadstring(game:HttpGet(“https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua”))()
+local InterfaceManager = loadstring(game:HttpGet(“https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua”))()
 
-do 
-	if LocalPlayer.PlayerGui:FindFirstChild("Roblox/Fluent") then
+do
+if LocalPlayer.PlayerGui:FindFirstChild(“Roblox/Fluent”) then
 
-		local ScreenGui = Instance.new("ScreenGui")
-		local Frame = Instance.new("Frame")
-		local UICorner = Instance.new("UICorner")
-		local ImageButton = Instance.new("ImageButton")
+```
+	local ScreenGui = Instance.new("ScreenGui")
+	local Frame = Instance.new("Frame")
+	local UICorner = Instance.new("UICorner")
+	local ImageButton = Instance.new("ImageButton")
 
-		ScreenGui.Name = "ScreenGuis"
-		ScreenGui.Parent = LocalPlayer.PlayerGui
+	ScreenGui.Name = "ScreenGuis"
+	ScreenGui.Parent = LocalPlayer.PlayerGui
 
-		Frame.Parent = ScreenGui
-		Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-		Frame.BackgroundTransparency = 0.700
-		Frame.BorderColor3 = Color3.fromRGB(0, 0, 0)
-		Frame.BorderSizePixel = 0
-		Frame.Position = UDim2.new(0.474052399, 0, 0.046491228, 0)
-		Frame.Size = UDim2.new(0.0340000018, 0, 0.0700000003, 0)
+	Frame.Parent = ScreenGui
+	Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	Frame.BackgroundTransparency = 0.700
+	Frame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	Frame.BorderSizePixel = 0
+	Frame.Position = UDim2.new(0.474052399, 0, 0.046491228, 0)
+	Frame.Size = UDim2.new(0.0340000018, 0, 0.0700000003, 0)
 
-		UICorner.Parent = Frame
+	UICorner.Parent = Frame
 
-		ImageButton.Parent = Frame
-		ImageButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-		ImageButton.BackgroundTransparency = 1.000
-		ImageButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
-		ImageButton.BorderSizePixel = 0
-		ImageButton.Position = UDim2.new(-0.0250000004, 0, -0.027777778, 0)
-		ImageButton.Size = UDim2.new(1.1, 0, 1.1, 0)
-		ImageButton.Image = "rbxassetid://103816145608946"
+	ImageButton.Parent = Frame
+	ImageButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	ImageButton.BackgroundTransparency = 1.000
+	ImageButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	ImageButton.BorderSizePixel = 0
+	ImageButton.Position = UDim2.new(-0.0250000004, 0, -0.027777778, 0)
+	ImageButton.Size = UDim2.new(1.1, 0, 1.1, 0)
+	ImageButton.Image = "rbxassetid://103816145608946"
 
-		ImageButton.MouseButton1Click:Connect(function()
-			LocalPlayer.PlayerGui["Roblox/Fluent"]:GetChildren()[2].Visible = not LocalPlayer.PlayerGui["Roblox/Fluent"]:GetChildren()[2].Visible
-		end)
-	end
-end 
+	ImageButton.MouseButton1Click:Connect(function()
+		LocalPlayer.PlayerGui["Roblox/Fluent"]:GetChildren()[2].Visible = not LocalPlayer.PlayerGui["Roblox/Fluent"]:GetChildren()[2].Visible
+	end)
+end
+```
+
+end
 
 local Window = Fluent:CreateWindow({
-	Title = "Zepthic",
-	SubTitle = "Anime Ranger x",
-	TabWidth = 160,
-	Size = UDim2.fromOffset(580, 360),
-	Acrylic = false,
-	Theme = "Dark",
-	MinimizeKey = Enum.KeyCode.LeftControl 
+Title = “Zepthic”,
+SubTitle = “Anime Ranger x”,
+TabWidth = 160,
+Size = UDim2.fromOffset(580, 360),
+Acrylic = false,
+Theme = “Dark”,
+MinimizeKey = Enum.KeyCode.LeftControl
 })
 
 local Tabs = {
-	AutoJoin = Window:AddTab({ Title = "Auto Join", Icon = "upload" }),
-	GamePlay = Window:AddTab({ Title = "Marco", Icon = "play" }),
-	Games = Window:AddTab({ Title = "Game", Icon = "box" }),
-	Discord = Window:AddTab({ Title = "Discord", Icon = "message-circle" }),
-	Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+AutoJoin = Window:AddTab({ Title = “Auto Join”, Icon = “upload” }),
+GamePlay = Window:AddTab({ Title = “Marco”, Icon = “play” }),
+Games = Window:AddTab({ Title = “Game”, Icon = “box” }),
+Discord = Window:AddTab({ Title = “Discord”, Icon = “message-circle” }),
+Settings = Window:AddTab({ Title = “Settings”, Icon = “settings” })
 }
 
 local Options = Fluent.Options
 
 local function Dropdown(tab, title, values, default, callback)
-	local dropdown = tab:AddDropdown(title, {
-		Title = title,
-		Values = values,
-		Multi = false,
-		Default = default
-	})
-	dropdown:OnChanged(callback)
-	return dropdown
+local dropdown = tab:AddDropdown(title, {
+Title = title,
+Values = values,
+Multi = false,
+Default = default
+})
+dropdown:OnChanged(callback)
+return dropdown
 end
 
 local function MultiDropdown(tab, title, values, default, callback)
-	local dropdowns = tab:AddDropdown(title, {
-		Title = title,
-		Description = "",
-		Values = values,
-		Multi = true,
-		Default = default or {}
-	})
-	dropdowns:OnChanged(callback)
-	return dropdowns
+local dropdowns = tab:AddDropdown(title, {
+Title = title,
+Description = “”,
+Values = values,
+Multi = true,
+Default = default or {}
+})
+dropdowns:OnChanged(callback)
+return dropdowns
 end
 
 local function Toggle(tab, title, settings)
-	local toggle = tab:AddToggle(title, { Title = title, Default = Settings[settings] })
-	toggle:OnChanged(function(value)
-		Settings[settings] = value
-		_G[settings] = Settings[settings]
-		saveConfig()
-		if func[settings] then
-			task.spawn(func[settings])
-		end
-	end)	
-	return toggle
+local toggle = tab:AddToggle(title, { Title = title, Default = Settings[settings] })
+toggle:OnChanged(function(value)
+Settings[settings] = value
+_G[settings] = Settings[settings]
+saveConfig()
+if func[settings] then
+task.spawn(func[settings])
+end
+end)
+return toggle
 end
 
-do 
-	Fluent:Notify({
-		Title = "Zepthic",
-		Content = "Loading Game Data...",
-		Duration = 3
-	})
+do
+Fluent:Notify({
+Title = “Zepthic”,
+Content = “Loading Game Data…”,
+Duration = 3
+})
+
+```
+-- Auto Join Tab
+Tabs.AutoJoin:AddSection("Story Mode")
+
+-- สร้าง Dropdown ที่มีข้อมูลจริง
+local storyNames = {}
+for _, name in pairs(Story) do
+	table.insert(storyNames, name)
+end
+
+Dropdown(Tabs.AutoJoin, "Story World: ", storyNames, Settings.StoryMode, function(value)
+	Settings.StoryMode = value
+	_G.StoryMode = value
+	saveConfig()
 	
-	-- Auto Join Tab
-	Tabs.AutoJoin:AddSection("Story Mode")
-	
-	-- สร้าง Dropdown ที่มีข้อมูลจริง
-	local storyNames = {}
-	for _, name in pairs(Story) do
-		table.insert(storyNames, name)
+	-- อัพเดต Chapter list ตาม World ที่เลือก
+	local selectedWorldId = nil
+	for _, world in pairs(availableWorlds) do
+		if world.name == value then
+			selectedWorldId = world.id
+			break
+		end
 	end
 	
-	Dropdown(Tabs.AutoJoin, "Story World: ", storyNames, Settings.StoryMode, function(value)
-		Settings.StoryMode = value
-		_G.StoryMode = value
-		saveConfig()
-		
-		-- อัพเดต Chapter list ตาม World ที่เลือก
-		local selectedWorldId = nil
-		for _, world in pairs(availableWorlds) do
-			if world.name == value then
-				selectedWorldId = world.id
-				break
-			end
+	if selectedWorldId then
+		local chapters = GameDataSystem.GetAvailableChapters(selectedWorldId)
+		local chapterNames = {}
+		for _, chapter in pairs(chapters) do
+			table.insert(chapterNames, chapter.id)
 		end
-		
-		if selectedWorldId then
-			local chapters = GameDataSystem.GetAvailableChapters(selectedWorldId)
-			local chapterNames = {}
-			for _, chapter in pairs(chapters) do
-				table.insert(chapterNames, chapter.id)
-			end
-			-- TODO: อัพเดต Chapter dropdown (ต้องเก็บ reference)
-		end
-	end)
-	
-	Dropdown(Tabs.AutoJoin, "Chapter: ", {'1','2','3','4','5','6','7','8','9','10'}, Settings.Chapter, function(value)
-		Settings.Chapter = value
-		_G.Chapter = value
-		saveConfig()
-	end)
-	
-	Dropdown(Tabs.AutoJoin, "Difficulty: ", {'Normal','Hard','Nightmare'}, Settings.Difficulty, function(value)
-		Settings.Difficulty = value
-		_G.Difficulty = value
-		saveConfig()
-	end)
-	
-    Toggle(Tabs.AutoJoin, "Auto Join Story", "JoinStory")
-	
-	Tabs.AutoJoin:AddSection("Ranger Mode")
-	
-	local worldNames = {}
-	for _, name in pairs(Worlds) do
-		table.insert(worldNames, name)
+		-- TODO: อัพเดต Chapter dropdown (ต้องเก็บ reference)
 	end
-	
-	Dropdown(Tabs.AutoJoin, "World: ", worldNames, Settings.World, function(value)
-		Settings.World = value
-		_G.World = value
-		saveConfig()
-	end)
-	
-	Dropdown(Tabs.AutoJoin, "Act: ", {'1','2','3'}, Settings.Act, function(value)
-		Settings.Act = value
-		_G.Act = value
-		saveConfig()
-	end)
-	
-	Toggle(Tabs.AutoJoin, "Auto Join Ranger", "JoinRanger")
-	
-	Tabs.AutoJoin:AddSection("Game Info")
-	Tabs.AutoJoin:AddButton({
-		Title = "Show Current Game Info",
-		Description = "Display current world/level information",
-		Callback = function()
-			local worldInfo = GameDataSystem.GetWorldInfo()
-			local playTime = GameTimer:GetPlayTime()
-			
-			Fluent:Notify({
-				Title = "Current Game Info",
-				Content = string.format("Map: %s\nTime: %s", worldInfo.FullMapName, playTime),
-				Duration = 5
-			})
-		end
-	})
-	
-	Tabs.AutoJoin:AddSection("Player Upgrade")
-	Dropdown(Tabs.AutoJoin, "Upgrade Type: ", {'YenMaxLevel','YenGenarateLevel','BaseHealthLevel'}, Settings.Upgrade, function(value)
-		Settings.Upgrade = value
-		_G.Upgrade = value
-		saveConfig()
-	end)
-	
-	Tabs.AutoJoin:AddButton({
-		Title = "Upgrade Player Stats",
-		Description = "Upgrade selected stat type",
-		Callback = function()
-			replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("PlayerStats"):FireServer(_G.Upgrade)
-		end
-	})
-	
-	Tabs.AutoJoin:AddSection("Unit Summon")
-	Dropdown(Tabs.AutoJoin, "Banner Type: ", {'Standard','Rateup'}, Settings.Summon, function(value)
-		Settings.Summon = value
-		_G.Summon = value
-		saveConfig()
-	end)
-	
-	Dropdown(Tabs.AutoJoin, "Summon Amount: ", {'x1','x10'}, Settings.Unit, function(value)
-		Settings.Unit = value
-		_G.Unit = value
-		saveConfig()
-	end)
-	
-	Tabs.AutoJoin:AddButton({
-		Title = "Summon Units",
-		Description = "Summon units with selected settings",
-		Callback = function()
-			replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gambling"):WaitForChild("UnitsGacha"):FireServer(_G.Unit,_G.Summon,{})
-		end
-	})
-	
-	-- Marco Tab
-	Tabs.GamePlay:AddSection("Marco Management")
-	local marcoDropdown = Dropdown(Tabs.GamePlay, "Select Marco: ", marco, Settings.Marco, function(value)
-		Settings.Marco = value
-		_G.Marco = value
-		saveConfig()
-	end)
-	
-	Tabs.GamePlay:AddButton({
-		Title = "Refresh Marco List",
-		Description = "Reload available marco files",
-		Callback = function()
-			table.clear(marco)
-			if isfolder(path.."/Marco") then
-				for _, filePath in ipairs(listfiles(path.."/Marco")) do
-					local name = filePath:match("^.+[/\\]([^/\\]+)")
-					if name then
-						table.insert(marco, name)
-					end
+end)
+
+Dropdown(Tabs.AutoJoin, "Chapter: ", {'1','2','3','4','5','6','7','8','9','10'}, Settings.Chapter, function(value)
+	Settings.Chapter = value
+	_G.Chapter = value
+	saveConfig()
+end)
+
+Dropdown(Tabs.AutoJoin, "Difficulty: ", {'Normal','Hard','Nightmare'}, Settings.Difficulty, function(value)
+	Settings.Difficulty = value
+	_G.Difficulty = value
+	saveConfig()
+end)
+
+Toggle(Tabs.AutoJoin, "Auto Join Story", "JoinStory")
+
+Tabs.AutoJoin:AddSection("Ranger Mode")
+
+local worldNames = {}
+for _, name in pairs(Worlds) do
+	table.insert(worldNames, name)
+end
+
+Dropdown(Tabs.AutoJoin, "World: ", worldNames, Settings.World, function(value)
+	Settings.World = value
+	_G.World = value
+	saveConfig()
+end)
+
+Dropdown(Tabs.AutoJoin, "Act: ", {'1','2','3'}, Settings.Act, function(value)
+	Settings.Act = value
+	_G.Act = value
+	saveConfig()
+end)
+
+Toggle(Tabs.AutoJoin, "Auto Join Ranger", "JoinRanger")
+
+Tabs.AutoJoin:AddSection("Game Info")
+Tabs.AutoJoin:AddButton({
+	Title = "Show Current Game Info",
+	Description = "Display current world/level information",
+	Callback = function()
+		local worldInfo = GameDataSystem.GetWorldInfo()
+		local playTime = GameTimer:GetPlayTime()
+		
+		Fluent:Notify({
+			Title = "Current Game Info",
+			Content = string.format("Map: %s\nTime: %s", worldInfo.FullMapName, playTime),
+			Duration = 5
+		})
+	end
+})
+
+Tabs.AutoJoin:AddSection("Player Upgrade")
+Dropdown(Tabs.AutoJoin, "Upgrade Type: ", {'YenMaxLevel','YenGenarateLevel','BaseHealthLevel'}, Settings.Upgrade, function(value)
+	Settings.Upgrade = value
+	_G.Upgrade = value
+	saveConfig()
+end)
+
+Tabs.AutoJoin:AddButton({
+	Title = "Upgrade Player Stats",
+	Description = "Upgrade selected stat type",
+	Callback = function()
+		replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gameplay"):WaitForChild("PlayerStats"):FireServer(_G.Upgrade)
+	end
+})
+
+Tabs.AutoJoin:AddSection("Unit Summon")
+Dropdown(Tabs.AutoJoin, "Banner Type: ", {'Standard','Rateup'}, Settings.Summon, function(value)
+	Settings.Summon = value
+	_G.Summon = value
+	saveConfig()
+end)
+
+Dropdown(Tabs.AutoJoin, "Summon Amount: ", {'x1','x10'}, Settings.Unit, function(value)
+	Settings.Unit = value
+	_G.Unit = value
+	saveConfig()
+end)
+
+Tabs.AutoJoin:AddButton({
+	Title = "Summon Units",
+	Description = "Summon units with selected settings",
+	Callback = function()
+		replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("Gambling"):WaitForChild("UnitsGacha"):FireServer(_G.Unit,_G.Summon,{})
+	end
+})
+
+-- Marco Tab
+Tabs.GamePlay:AddSection("Marco Management")
+local marcoDropdown = Dropdown(Tabs.GamePlay, "Select Marco: ", marco, Settings.Marco, function(value)
+	Settings.Marco = value
+	_G.Marco = value
+	saveConfig()
+end)
+
+Tabs.GamePlay:AddButton({
+	Title = "Refresh Marco List",
+	Description = "Reload available marco files",
+	Callback = function()
+		table.clear(marco)
+		if isfolder(path.."/Marco") then
+			for _, filePath in ipairs(listfiles(path.."/Marco")) do
+				local name = filePath:match("^.+[/\\]([^/\\]+)")
+				if name then
+					table.insert(marco, name)
 				end
 			end
-			marcoDropdown:SetValues(marco)
+		end
+		marcoDropdown:SetValues(marco)
+		Fluent:Notify({
+			Title = "Marco Manager",
+			Content = "Marco list refreshed successfully!",
+			Duration = 3
+		})
+	end
+})
+
+Tabs.GamePlay:AddButton({
+	Title = "Delete Selected Marco",
+	Description = "Delete the currently selected marco file",
+	Callback = function()
+		if not _G.Marco then
 			Fluent:Notify({
 				Title = "Marco Manager",
-				Content = "Marco list refreshed successfully!",
+				Content = "Please select a marco file first!",
 				Duration = 3
 			})
+			return
 		end
-	})
-	
-	Tabs.GamePlay:AddButton({
-		Title = "Delete Selected Marco",
-		Description = "Delete the currently selected marco file",
-		Callback = function()
-			if not _G.Marco then
-				Fluent:Notify({
-					Title = "Marco Manager",
-					Content = "Please select a marco file first!",
-					Duration = 3
-				})
-				return
-			end
+		
+		local filePath = path.."/Marco/".._G.Marco
+		if isfile(filePath) then
+			delfile(filePath)
 			
-			local filePath = path.."/Marco/".._G.Marco
-			if isfile(filePath) then
-				delfile(filePath)
-				
-				-- Remove from list
-				for i, v in pairs(marco) do
-					if v == _G.Marco then
-						table.remove(marco, i)
-						break
-					end
+			-- Remove from list
+			for i, v in pairs(marco) do
+				if v == _G.Marco then
+					table.remove(marco, i)
+					break
 				end
-				
-				marcoDropdown:SetValues(marco)
-				_G.Marco = nil
-				
-				Fluent:Notify({
-					Title = "Marco Manager",
-					Content = "Marco deleted successfully!",
-					Duration = 3
-				})
-			else
-				Fluent:Notify({
-					Title = "Marco Manager",
-					Content = "Marco file not found!",
-					Duration = 3
-				})
-			end
-		end
-	})
-	
-	Tabs.GamePlay:AddSection("Create New Marco")
-	local marcoNameInput
-	marcoNameInput = Tabs.GamePlay:AddInput("MarcoName", {
-        Title = "Marco File Name",
-        Default = "",
-        Placeholder = "Enter marco name (without .json)",
-        Numeric = false, 
-        Finished = false,
-        Callback = function(Value)
-            _G.MarcoName = Value
-        end
-    })
-	
-	Tabs.GamePlay:AddButton({
-		Title = "Create Marco File",
-		Description = "Create a new empty marco file",
-		Callback = function()
-			if not _G.MarcoName or _G.MarcoName == "" then
-				Fluent:Notify({
-					Title = "Marco Creator",
-					Content = "Please enter a marco name!",
-					Duration = 3
-				})
-				return
 			end
 			
-			if not isfolder(path.."/Marco") then
-				makefolder(path.."/Marco")
-			end
-
-			local fileName = _G.MarcoName.."-"..LocalPlayer.Name..".json"
-			local filePath = path.."/Marco/"..fileName
+			marcoDropdown:SetValues(marco)
+			_G.Marco = nil
 			
-			if isfile(filePath) then
-				Fluent:Notify({
-					Title = "Marco Creator",
-					Content = "Marco file already exists!",
-					Duration = 3
-				})
-			else
-				writefile(filePath, HttpService:JSONEncode({})) 
-				table.insert(marco, fileName)
-				marcoDropdown:SetValues(marco)
-				
-				Fluent:Notify({
-					Title = "Marco Creator",
-					Content = "Marco file created successfully!",
-					Duration = 3
-				})
-			end
+			Fluent:Notify({
+				Title = "Marco Manager",
+				Content = "Marco deleted successfully!",
+				Duration = 3
+			})
+		else
+			Fluent:Notify({
+				Title = "Marco Manager",
+				Content = "Marco file not found!",
+				Duration = 3
+			})
 		end
-	})
-	
-	Tabs.GamePlay:AddSection("Marco Controls")
-	Toggle(Tabs.GamePlay, "Marco Playback", "Playbackmarco")
-	Toggle(Tabs.GamePlay, "Marco Recording", "RecordingMarco")
-	
-	-- Games Tab
-	Tabs.Games:AddSection("Auto Features")
-	Toggle(Tabs.Games, "Auto Play", "AutoPlay")
-	Toggle(Tabs.Games, "Auto Retry", "AutoRetry")
-	Toggle(Tabs.Games, "Auto Next", "AutoNext")
-	
-	Tabs.Games:AddSection("Unit Management")
-	local unitsList = {}
-	if LocalPlayer:FindFirstChild('UnitsFolder') then 
-		for i,v in pairs(LocalPlayer.UnitsFolder:GetChildren()) do 
-			table.insert(unitsList, v.Name) 
-		end 
 	end
-	
-	MultiDropdown(Tabs.Games, "Select Units to Upgrade:", unitsList, Settings.UpdatesCatogory, function(value)
-		local selectedUnits = {}
-		for unitName, isSelected in pairs(value) do
-			if typeof(unitName) == "string" and isSelected then
-				table.insert(selectedUnits, unitName)
-			end
+})
+
+Tabs.GamePlay:AddSection("Create New Marco")
+local marcoNameInput
+marcoNameInput = Tabs.GamePlay:AddInput("MarcoName", {
+    Title = "Marco File Name",
+    Default = "",
+    Placeholder = "Enter marco name (without .json)",
+    Numeric = false, 
+    Finished = false,
+    Callback = function(Value)
+        _G.MarcoName = Value
+    end
+})
+
+Tabs.GamePlay:AddButton({
+	Title = "Create Marco File",
+	Description = "Create a new empty marco file",
+	Callback = function()
+		if not _G.MarcoName or _G.MarcoName == "" then
+			Fluent:Notify({
+				Title = "Marco Creator",
+				Content = "Please enter a marco name!",
+				Duration = 3
+			})
+			return
 		end
-		Settings.UpdatesCatogory = selectedUnits
-		_G.UpdatesCatogory = Settings.UpdatesCatogory 
+		
+		if not isfolder(path.."/Marco") then
+			makefolder(path.."/Marco")
+		end
+
+		local fileName = _G.MarcoName.."-"..LocalPlayer.Name..".json"
+		local filePath = path.."/Marco/"..fileName
+		
+		if isfile(filePath) then
+			Fluent:Notify({
+				Title = "Marco Creator",
+				Content = "Marco file already exists!",
+				Duration = 3
+			})
+		else
+			writefile(filePath, HttpService:JSONEncode({})) 
+			table.insert(marco, fileName)
+			marcoDropdown:SetValues(marco)
+			
+			Fluent:Notify({
+				Title = "Marco Creator",
+				Content = "Marco file created successfully!",
+				Duration = 3
+			})
+		end
+	end
+})
+
+Tabs.GamePlay:AddSection("Marco Controls")
+Toggle(Tabs.GamePlay, "Marco Playback", "Playbackmarco")
+Toggle(Tabs.GamePlay, "Marco Recording", "RecordingMarco")
+
+-- Games Tab
+Tabs.Games:AddSection("Auto Features")
+Toggle(Tabs.Games, "Auto Play", "AutoPlay")
+Toggle(Tabs.Games, "Auto Retry", "AutoRetry")
+Toggle(Tabs.Games, "Auto Next", "AutoNext")
+
+Tabs.Games:AddSection("Unit Management")
+local unitsList = {}
+if LocalPlayer:FindFirstChild('UnitsFolder') then 
+	for i,v in pairs(LocalPlayer.UnitsFolder:GetChildren()) do 
+		table.insert(unitsList, v.Name) 
+	end 
+end
+
+MultiDropdown(Tabs.Games, "Select Units to Upgrade:", unitsList, Settings.UpdatesCatogory, function(value)
+	local selectedUnits = {}
+	for unitName, isSelected in pairs(value) do
+		if typeof(unitName) == "string" and isSelected then
+			table.insert(selectedUnits, unitName)
+		end
+	end
+	Settings.UpdatesCatogory = selectedUnits
+	_G.UpdatesCatogory = Settings.UpdatesCatogory 
+	saveConfig()
+end)
+
+Toggle(Tabs.Games, "Auto Upgrade Units", "AutoUpgrade")
+Toggle(Tabs.Games, "Auto Upgrade Stats", "AutoUpgradeStatus")
+
+Tabs.Games:AddSection("Game Timer")
+Tabs.Games:AddButton({
+	Title = "Show Current Time",
+	Description = "Display current game session time",
+	Callback = function()
+		local currentTime = GameTimer:GetPlayTime()
+		local status = GameTimer.isGameRunning and "Running" or "Stopped"
+		
+		Fluent:Notify({
+			Title = "Game Timer",
+			Content = string.format("Time: %s\nStatus: %s", currentTime, status),
+			Duration = 3
+		})
+	end
+})
+
+Tabs.Games:AddButton({
+	Title = "Reset Timer",
+	Description = "Reset the game timer",
+	Callback = function()
+		GameTimer.startTime = 0
+		GameTimer.endTime = 0
+		GameTimer.isGameRunning = false
+		
+		Fluent:Notify({
+			Title = "Game Timer",
+			Content = "Timer reset successfully!",
+			Duration = 3
+		})
+	end
+})
+
+-- Discord Tab
+Tabs.Discord:AddSection("Game Completion Webhook")
+
+if not webhookSupported then
+	Tabs.Discord:AddParagraph({
+		Title = "⚠️ Warning",
+		Content = "Your executor does not support HTTP requests. Discord webhook functionality will not work."
+	})
+else
+	Tabs.Discord:AddParagraph({
+		Title = "✅ HTTP Support",
+		Content = "Your executor supports HTTP requests. Discord webhook is ready to use!"
+	})
+end
+
+Toggle(Tabs.Discord, "Enable Game Completion Webhook", "DiscordEnabled")
+
+Tabs.Discord:AddInput("DiscordURL", {
+    Title = "Game Completion Webhook URL",
+    Default = Settings.DiscordURL or "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL",
+    Placeholder = "Paste your Discord webhook URL for game completion",
+    Numeric = false, 
+    Finished = false,
+    Callback = function(Value)
+        Settings.DiscordURL = Value
+		_G.DiscordURL = Value
 		saveConfig()
-	end)
-	
-	Toggle(Tabs.Games, "Auto Upgrade Units", "AutoUpgrade")
-	Toggle(Tabs.Games, "Auto Upgrade Stats", "AutoUpgradeStatus")
-	
-	Tabs.Games:AddSection("Game Timer")
-	Tabs.Games:AddButton({
-		Title = "Show Current Time",
-		Description = "Display current game session time",
-		Callback = function()
-			local currentTime = GameTimer:GetPlayTime()
-			local status = GameTimer.isGameRunning and "Running" or "Stopped"
-			
+    end
+})
+
+-- Auto Join Webhooks Section
+Tabs.Discord:AddSection("Auto Join Story Webhook")
+
+local storyWebhookToggle = Tabs.Discord:AddToggle("StoryWebhookEnabled", { 
+	Title = "Enable Story Auto Join Webhook", 
+	Default = autoJoinWebhook.storyEnabled 
+})
+storyWebhookToggle:OnChanged(function(value)
+	autoJoinWebhook.storyEnabled = value
+end)
+
+Tabs.Discord:AddInput("StoryWebhookURL", {
+    Title = "Story Auto Join Webhook URL",
+    Default = autoJoinWebhook.storyURL,
+    Placeholder = "Paste webhook URL for Story mode auto join notifications",
+    Numeric = false, 
+    Finished = false,
+    Callback = function(Value)
+        autoJoinWebhook.storyURL = Value
+    end
+})
+
+Tabs.Discord:AddSection("Auto Join Ranger Webhook")
+
+local rangerWebhookToggle = Tabs.Discord:AddToggle("RangerWebhookEnabled", { 
+	Title = "Enable Ranger Auto Join Webhook", 
+	Default = autoJoinWebhook.rangerEnabled 
+})
+rangerWebhookToggle:OnChanged(function(value)
+	autoJoinWebhook.rangerEnabled = value
+end)
+
+Tabs.Discord:AddInput("RangerWebhookURL", {
+    Title = "Ranger Auto Join Webhook URL",
+    Default = autoJoinWebhook.rangerURL,
+    Placeholder = "Paste webhook URL for Ranger mode auto join notifications",
+    Numeric = false, 
+    Finished = false,
+    Callback = function(Value)
+        autoJoinWebhook.rangerURL = Value
+    end
+})
+
+Tabs.Discord:AddButton({
+	Title = "Test Webhook",
+	Description = "Send a test message to Discord",
+	Callback = function()
+		if not Settings.DiscordEnabled then
 			Fluent:Notify({
-				Title = "Game Timer",
-				Content = string.format("Time: %s\nStatus: %s", currentTime, status),
+				Title = "Discord Webhook",
+				Content = "Please enable Discord Webhook first!",
 				Duration = 3
 			})
+			return
 		end
-	})
-	
-	Tabs.Games:AddButton({
-		Title = "Reset Timer",
-		Description = "Reset the game timer",
-		Callback = function()
-			GameTimer.startTime = 0
-			GameTimer.endTime = 0
-			GameTimer.isGameRunning = false
-			
+		
+		if not webhookSupported then
 			Fluent:Notify({
-				Title = "Game Timer",
-				Content = "Timer reset successfully!",
+				Title = "Discord Webhook", 
+				Content = "Your executor doesn't support HTTP requests!",
 				Duration = 3
 			})
+			return
 		end
-	})
-	
-	-- Discord Tab
-	Tabs.Discord:AddSection("Discord Webhook Settings")
-	
-	if not webhookSupported then
-		Tabs.Discord:AddParagraph({
-			Title = "⚠️ Warning",
-			Content = "Your executor does not support HTTP requests. Discord webhook functionality will not work."
+		
+		-- Test webhook with current game data
+		local worldInfo = GameDataSystem.GetWorldInfo()
+		local playTime = GameTimer:GetPlayTime()
+		
+		local testEmbed = {
+			title = "🧪 Test Message from Zepthic ARX",
+			description = "This is a test message to verify webhook functionality!",
+			color = 0x00ff00,
+			fields = {
+				{ name = "👤 Player", value = LocalPlayer.Name, inline = true },
+				{ name = "🎮 Game", value = "Anime Ranger X", inline = true },
+				{ name = "🗺️ Current Map", value = worldInfo.FullMapName, inline = true },
+				{ name = "⏰ Session Time", value = playTime, inline = true },
+				{ name = "✨ Status", value = "Webhook Working Perfectly!", inline = true }
+			},
+			footer = { text = "Zepthic ARX Script  •  " .. os.date("%H:%M:%S") },
+			timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+		}
+
+		local payload = HttpService:JSONEncode({
+			username = "🤖 Zepthic Test Bot",
+			avatar_url = "https://i.imgur.com/your-bot-avatar.gif",
+			embeds = {testEmbed}
 		})
-	else
-		Tabs.Discord:AddParagraph({
-			Title = "✅ HTTP Support",
-			Content = "Your executor supports HTTP requests. Discord webhook is ready to use!"
+
+		local success, response = pcall(function()
+			return http_request({
+				Url = Settings.DiscordURL,
+				Method = "POST",
+				Headers = {["Content-Type"] = "application/json"},
+				Body = payload
+			})
+		end)
+
+		if success then
+			Fluent:Notify({
+				Title = "Discord Webhook",
+				Content = "✅ Test message sent successfully!",
+				Duration = 3
+			})
+		else
+			Fluent:Notify({
+				Title = "Discord Webhook",
+				Content = "❌ Failed to send test message. Check your URL!",
+				Duration = 5
+			})
+		end
+	end
+})
+
+Tabs.Discord:AddSection("Webhook Information")
+Tabs.Discord:AddParagraph({
+	Title = "📝 How to get Discord Webhook URL:",
+	Content = "1. Go to your Discord server\n2. Right-click on a text channel\n3. Select 'Edit Channel'\n4. Go to 'Integrations' tab\n5. Click 'Create Webhook'\n6. Copy the webhook URL and paste it above"
+})
+
+Tabs.Discord:AddParagraph({
+	Title = "🎯 Enhanced Features:",
+	Content = "• Automatic game completion notifications\n• Real-time map name detection\n• Accurate play time tracking\n• Player stats and rewards display\n• Beautiful embed messages with emojis\n• Anti-spam protection (15 second cooldown)\n• Live game data integration"
+})
+
+Tabs.Discord:AddSection("Webhook Preview")
+Tabs.Discord:AddButton({
+	Title = "Preview Current Game Data",
+	Description = "See what data will be sent to Discord",
+	Callback = function()
+		local worldInfo = GameDataSystem.GetWorldInfo()
+		local playTime = GameTimer:GetPlayTime()
+		local playerData = discordWebhook.getPlayerData()
+		
+		local previewText = string.format(
+			"Map: %s\nTime: %s\nGems: %d\nGold: %d\nRC Cells: %d",
+			worldInfo.FullMapName,
+			playTime,
+			playerData.gems,
+			playerData.golds,
+			playerData.rcCells
+		)
+		
+		Fluent:Notify({
+			Title = "Discord Preview",
+			Content = previewText,
+			Duration = 5
 		})
 	end
-	
-	Toggle(Tabs.Discord, "Enable Discord Notifications", "DiscordEnabled")
-	
-	Tabs.Discord:AddInput("DiscordURL", {
-        Title = "Discord Webhook URL",
-        Default = Settings.DiscordURL or "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL",
-        Placeholder = "Paste your Discord webhook URL here",
-        Numeric = false, 
-        Finished = false,
-        Callback = function(Value)
-            Settings.DiscordURL = Value
-			_G.DiscordURL = Value
-			saveConfig()
-        end
-    })
-	
-	Tabs.Discord:AddButton({
-		Title = "Test Webhook",
-		Description = "Send a test message to Discord",
-		Callback = function()
-			if not Settings.DiscordEnabled then
-				Fluent:Notify({
-					Title = "Discord Webhook",
-					Content = "Please enable Discord Webhook first!",
-					Duration = 3
-				})
-				return
-			end
-			
-			if not webhookSupported then
-				Fluent:Notify({
-					Title = "Discord Webhook", 
-					Content = "Your executor doesn't support HTTP requests!",
-					Duration = 3
-				})
-				return
-			end
-			
-			-- Test webhook with current game data
-			local worldInfo = GameDataSystem.GetWorldInfo()
-			local playTime = GameTimer:GetPlayTime()
-			
-			local testEmbed = {
-				title = "🧪 Test Message from Zepthic ARX",
-				description = "This is a test message to verify webhook functionality!",
-				color = 0x00ff00,
-				fields = {
-					{ name = "👤 Player", value = LocalPlayer.Name, inline = true },
-					{ name = "🎮 Game", value = "Anime Ranger X", inline = true },
-					{ name = "🗺️ Current Map", value = worldInfo.FullMapName, inline = true },
-					{ name = "⏰ Session Time", value = playTime, inline = true },
-					{ name = "✨ Status", value = "Webhook Working Perfectly!", inline = true }
-				},
-				footer = { text = "Zepthic ARX Script  •  " .. os.date("%H:%M:%S") },
-				timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-			}
+})
 
-			local payload = HttpService:JSONEncode({
-				username = "🤖 Zepthic Test Bot",
-				avatar_url = "https://i.imgur.com/your-bot-avatar.gif",
-				embeds = {testEmbed}
-			})
+-- Settings Tab
+Tabs.Settings:AddSection("Performance")
+Toggle(Tabs.Settings, "White Screen (Performance)", "WhiteScreen")
 
-			local success, response = pcall(function()
-				return http_request({
-					Url = Settings.DiscordURL,
-					Method = "POST",
-					Headers = {["Content-Type"] = "application/json"},
-					Body = payload
-				})
-			end)
+Tabs.Settings:AddSection("Debug Information")
+Tabs.Settings:AddButton({
+	Title = "Show Script Info",
+	Description = "Display current script status",
+	Callback = function()
+		local info = string.format(
+			"Script: Zepthic ARX v2.0\nPlayer: %s\nGame Timer: %s\nWebhook: %s\nWorlds Loaded: %d\nMarcos Available: %d",
+			LocalPlayer.Name,
+			GameTimer.isGameRunning and "Running" or "Stopped",
+			webhookSupported and "Supported" or "Not Supported",
+			#availableWorlds,
+			#marco
+		)
+		
+		Fluent:Notify({
+			Title = "Script Information",
+			Content = info,
+			Duration = 5
+		})
+	end
+})
 
-			if success then
-				Fluent:Notify({
-					Title = "Discord Webhook",
-					Content = "✅ Test message sent successfully!",
-					Duration = 3
-				})
-			else
-				Fluent:Notify({
-					Title = "Discord Webhook",
-					Content = "❌ Failed to send test message. Check your URL!",
-					Duration = 5
-				})
-			end
+Tabs.Settings:AddButton({
+	Title = "Reload World Data",
+	Description = "Refresh world and level information",
+	Callback = function()
+		-- Reload world data
+		table.clear(Story)
+		table.clear(Worlds)
+		
+		local newWorlds = GameDataSystem.GetAvailableWorlds()
+		for _, world in pairs(newWorlds) do
+			table.insert(Story, world.name)
+			table.insert(Worlds, world.name)
 		end
-	})
-	
-	Tabs.Discord:AddSection("Webhook Information")
-	Tabs.Discord:AddParagraph({
-		Title = "📝 How to get Discord Webhook URL:",
-		Content = "1. Go to your Discord server\n2. Right-click on a text channel\n3. Select 'Edit Channel'\n4. Go to 'Integrations' tab\n5. Click 'Create Webhook'\n6. Copy the webhook URL and paste it above"
-	})
-	
-	Tabs.Discord:AddParagraph({
-		Title = "🎯 Enhanced Features:",
-		Content = "• Automatic game completion notifications\n• Real-time map name detection\n• Accurate play time tracking\n• Player stats and rewards display\n• Beautiful embed messages with emojis\n• Anti-spam protection (15 second cooldown)\n• Live game data integration"
-	})
-	
-	Tabs.Discord:AddSection("Webhook Preview")
-	Tabs.Discord:AddButton({
-		Title = "Preview Current Game Data",
-		Description = "See what data will be sent to Discord",
-		Callback = function()
-			local worldInfo = GameDataSystem.GetWorldInfo()
-			local playTime = GameTimer:GetPlayTime()
-			local playerData = discordWebhook.getPlayerData()
-			
-			local previewText = string.format(
-				"Map: %s\nTime: %s\nGems: %d\nGold: %d\nRC Cells: %d",
-				worldInfo.FullMapName,
-				playTime,
-				playerData.gems,
-				playerData.golds,
-				playerData.rcCells
-			)
-			
-			Fluent:Notify({
-				Title = "Discord Preview",
-				Content = previewText,
-				Duration = 5
-			})
-		end
-	})
-	
-	-- Settings Tab
-	Tabs.Settings:AddSection("Performance")
-	Toggle(Tabs.Settings, "White Screen (Performance)", "WhiteScreen")
-	
-	Tabs.Settings:AddSection("Debug Information")
-	Tabs.Settings:AddButton({
-		Title = "Show Script Info",
-		Description = "Display current script status",
-		Callback = function()
-			local info = string.format(
-				"Script: Zepthic ARX v2.0\nPlayer: %s\nGame Timer: %s\nWebhook: %s\nWorlds Loaded: %d\nMarcos Available: %d",
-				LocalPlayer.Name,
-				GameTimer.isGameRunning and "Running" or "Stopped",
-				webhookSupported and "Supported" or "Not Supported",
-				#availableWorlds,
-				#marco
-			)
-			
-			Fluent:Notify({
-				Title = "Script Information",
-				Content = info,
-				Duration = 5
-			})
-		end
-	})
-	
-	Tabs.Settings:AddButton({
-		Title = "Reload World Data",
-		Description = "Refresh world and level information",
-		Callback = function()
-			-- Reload world data
-			table.clear(Story)
-			table.clear(Worlds)
-			
-			local newWorlds = GameDataSystem.GetAvailableWorlds()
-			for _, world in pairs(newWorlds) do
-				table.insert(Story, world.name)
-				table.insert(Worlds, world.name)
-			end
-			
-			Fluent:Notify({
-				Title = "Data Manager",
-				Content = string.format("Reloaded %d worlds successfully!", #newWorlds),
-				Duration = 3
-			})
-		end
-	})
+		
+		Fluent:Notify({
+			Title = "Data Manager",
+			Content = string.format("Reloaded %d worlds successfully!", #newWorlds),
+			Duration = 3
+		})
+	end
+})
+```
+
 end
 
 SaveManager:SetLibrary(Fluent)
@@ -1288,17 +1503,17 @@ InterfaceManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
 
-InterfaceManager:SetFolder("FluentScriptHub")
-SaveManager:SetFolder("FluentScriptHub/specific-game")
+InterfaceManager:SetFolder(“FluentScriptHub”)
+SaveManager:SetFolder(“FluentScriptHub/specific-game”)
 
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 
 Window:SelectTab(1)
 
 Fluent:Notify({
-	Title = "Zepthic ARX v2.0 Loaded Successfully! 🎉",
-	Content = "Enhanced with Game Data Detection & Timer System",
-	Duration = 5
+Title = “Zepthic ARX v2.0 Loaded Successfully! 🎉”,
+Content = “Enhanced with Game Data Detection & Timer System”,
+Duration = 5
 })
 
 SaveManager:LoadAutoloadConfig()
