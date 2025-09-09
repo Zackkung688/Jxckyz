@@ -245,6 +245,7 @@ function GameDataSystem.GetAvailableChapters(worldId)
 	end
 	
 	return chapters
+end
 
 -- Discord Webhook Functions
 local discordWebhook = {}
@@ -252,6 +253,10 @@ local discordWebhook = {}
 -- รองรับ executor
 local http_request = http_request or syn and syn.request or request
 local webhookSupported = http_request ~= nil
+
+-- ตัวแปรกันซ้ำที่แข็งแกร่งขึ้น
+local lastSentTime = 0
+local COOLDOWN_TIME = 15 -- วินาที
 
 -- ฟังก์ชันดึง Result (ค่าอัพเดตล่าสุด) พร้อม Fall Currency และ Trait Reroll
 discordWebhook.getPlayerData = function()
@@ -284,7 +289,7 @@ discordWebhook.getPlayerData = function()
     }
 end
 
--- ฟังก์ชันแปลง RewardsShow เป็น text พร้อม emoji + จำนวนที่มีทั้งหมด
+-- ฟังก์ชันแปลง RewardsShow เป็น text พร้อม emoji + จำนวนที่มีทั้งหมด (รองรับทุกชั้น)
 discordWebhook.getRewards = function()
     local rewards = {}
     if not LocalPlayer:FindFirstChild("RewardsShow") then return rewards end
@@ -306,21 +311,21 @@ discordWebhook.getRewards = function()
 
     -- ฟังก์ชันกำหนดไอคอนตามชื่อ
     local function getIcon(name)
-        local lower = name:lower()
-        if lower:find("gem") then
+        name = name:lower()
+        if name:find("gem") then
             return "💎 "
-        elseif lower:find("gold") then
+        elseif name:find("gold") then
             return "🪙 "
-        elseif lower:find("exp") then
+        elseif name:find("exp") then
             return "⭐ "
-        elseif lower:find("rccells") or lower:find("cell") then
+        elseif name:find("rccells") or name:find("cell") then
             return "🩸 "
-        elseif lower:find("portal") then
-            return "🌀 "
-        elseif lower:find("fall currency") then
+        elseif name:find("fall") then
             return "🍁 "
-        elseif lower:find("trait reroll") then
+        elseif name:find("trait") then
             return "🧩 "
+        elseif name:find("portal") then
+            return "🌀 "
         else
             return "🎁 "
         end
@@ -332,31 +337,26 @@ discordWebhook.getRewards = function()
             local amountObj = folder:FindFirstChild("Amount")
             if amountObj and (amountObj:IsA("IntValue") or amountObj:IsA("NumberValue")) and amountObj.Value > 0 then
                 local name = folder.Name
-                local lower = name:lower()
+                local icon = getIcon(name)
 
-                -- 🔴 ข้าม Gem / Gold / Exp ไม่ต้องแสดง
-                if not (lower:find("gem") or lower:find("gold") or lower:find("exp")) then
-                    local icon = getIcon(name)
-
-                    -- จำนวนที่มีจริงจาก Items (รองรับ Folder ซ้อน)
-                    local totalOwned = 0
-                    local itemFolder = itemsFolder:FindFirstChild(name)
-                    if itemFolder then
-                        if itemFolder:FindFirstChild("Amount") then
-                            totalOwned = getItemAmount(itemFolder)
-                        else
-                            for _, sub in pairs(itemFolder:GetChildren()) do
-                                totalOwned = totalOwned + getItemAmount(sub)
-                            end
+                -- จำนวนที่มีจริงจาก Items (รองรับ Folder ซ้อน)
+                local totalOwned = 0
+                local itemFolder = itemsFolder:FindFirstChild(name)
+                if itemFolder then
+                    if itemFolder:FindFirstChild("Amount") then
+                        totalOwned = getItemAmount(itemFolder)
+                    else
+                        for _, sub in pairs(itemFolder:GetChildren()) do
+                            totalOwned = totalOwned + getItemAmount(sub)
                         end
                     end
+                end
 
-                    -- ถ้าเจอใน Items -> แสดง [จำนวนที่มี] ถ้าไม่เจอ -> ไม่ต้องใส่
-                    if totalOwned > 0 then
-                        table.insert(rewards, string.format("%s x%d %s [%d]", icon, amountObj.Value, name, totalOwned))
-                    else
-                        table.insert(rewards, string.format("%s x%d %s", icon, amountObj.Value, name))
-                    end
+                -- ถ้าเป็น Gem / Gold / Exp ไม่ต้องใส่ [จำนวนที่มี]
+                if name:lower():find("gem") or name:lower():find("gold") or name:lower():find("exp") then
+                    table.insert(rewards, string.format("%s x%d %s", icon, amountObj.Value, name))
+                else
+                    table.insert(rewards, string.format("%s x%d %s [%d]", icon, amountObj.Value, name, totalOwned))
                 end
             end
         end
@@ -365,7 +365,7 @@ discordWebhook.getRewards = function()
     return rewards
 end
 
--- ฟังก์ชันส่ง Discord Embed (เหมือนเดิม)
+-- ฟังก์ชันส่ง Discord Embed
 discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTime)
     if not Settings.DiscordEnabled or not webhookSupported then
         return
