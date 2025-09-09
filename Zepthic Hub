@@ -1,4 +1,3 @@
---Content is user-generated and unverified.
 local replicated = game:GetService("ReplicatedStorage")
 local PathfindingService = game:GetService("PathfindingService")
 local vim = game:GetService("VirtualInputManager")
@@ -292,17 +291,17 @@ discordWebhook.getRewards = function()
                 local name = folder.Name:lower()
 
                 if name:find("gem") then
-                    icon = "💎 "
+                    icon = "+ "
                 elseif name:find("gold") then
-                    icon = "🪙 "
+                    icon = "+ "
                 elseif name:find("exp") then
-                    icon = "⭐ "
+                    icon = "+ "
                 elseif name:find("rccells") or name:find("cell") then
-                    icon = "🩸 "
+                    icon = "+ "
                 elseif name:find("portal") then
-                    icon = "🌀 "
+                    icon = "+ "
                 else
-                    icon = "🎁 "
+                    icon = "+ "
                 end
 
                 table.insert(rewards, icon .. "x" .. amount.Value .. " " .. folder.Name)
