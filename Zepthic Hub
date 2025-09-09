@@ -258,31 +258,48 @@ local webhookSupported = http_request ~= nil
 local lastSentTime = 0
 local COOLDOWN_TIME = 15 -- วินาที
 
--- ฟังก์ชันดึง Result (ค่าอัพเดตล่าสุด) - Updated with Fall Currency
-discordWebhook.getPlayerData = function()
-    local dataPath = replicated:FindFirstChild("Player_Data")
-    if not dataPath then return {} end
+-- ฟังก์ชันแปลง RewardsShow เป็น text (รอให้ข้อมูลอัพเดต)
+discordWebhook.getRewards = function()
+    local rewards = {}
+    if not LocalPlayer:FindFirstChild("RewardsShow") then return rewards end
 
-    local myData = dataPath:FindFirstChild(LocalPlayer.Name)
-    if not myData then return {} end
-    local stats = myData:FindFirstChild("Data")
-    if not stats then return {} end
+    -- รอสักครู่ให้ RewardsShow อัพเดต
+    task.wait(1)
 
-    return {
-        gems = stats:FindFirstChild("Gem") and stats.Gem.Value or 0,
-        golds = stats:FindFirstChild("Gold") and stats.Gold.Value or 0,
-        rcCells = stats:FindFirstChild("RCCells") and stats.RCCells.Value or 0,
-        fallCurrency = stats:FindFirstChild("Fall Currency") and stats["Fall Currency"].Value or 0
-    }
+    for _, folder in pairs(LocalPlayer.RewardsShow:GetChildren()) do
+        if folder:IsA("Folder") then
+            local amount = folder:FindFirstChild("Amount")
+            if amount and (amount:IsA("IntValue") or amount:IsA("NumberValue")) and amount.Value > 0 then
+                local name = folder.Name
+                table.insert(rewards, "x" .. amount.Value .. " " .. name)
+            end
+        end
+    end
+
+    return rewards
 end
 
 -- ฟังก์ชันส่ง Discord Embed - Updated with Fall Currency
 discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTime)
+    print("🔍 เริ่มส่ง webhook...")
+    print("Debug - DiscordEnabled:", Settings.DiscordEnabled)
+    print("Debug - webhookSupported:", webhookSupported)
+    
     if not Settings.DiscordEnabled or not webhookSupported then
+        print("❌ Webhook ไม่ถูกเปิดใช้งานหรือไม่รองรับ")
         return
     end
 
-    local rewardText = (#rewardList > 0) and table.concat(rewardList, "\n") or "❌ No Rewards"
+    -- Safety checks
+    resultData = resultData or {}
+    rewardList = rewardList or {}
+    mapName = mapName or "Unknown Map"
+    playTime = playTime or "00:00"
+    
+    local rewardText = "No Rewards"
+    if type(rewardList) == "table" and #rewardList > 0 then
+        rewardText = table.concat(rewardList, "\n")
+    end
 
     local embed = {
         title = "GAME IS COMPLETED",
@@ -295,10 +312,10 @@ discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTim
                     "**Map:** %s\n**Time:** %s\nGems: **%s**\nGold: **%s**\nRC.Cells: **%s**\nFall Currency: **%s**",
                     mapName,
                     playTime,
-                    tostring(resultData.gems),
-                    tostring(resultData.golds),
-                    tostring(resultData.rcCells),
-                    tostring(resultData.fallCurrency)
+                    tostring(resultData.gems or 0),
+                    tostring(resultData.golds or 0),
+                    tostring(resultData.rcCells or 0),
+                    tostring(resultData.fallCurrency or 0)
                 ),
                 inline = false
             },
@@ -313,10 +330,11 @@ discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTim
     }
 
     local payload = HttpService:JSONEncode({
-        username = "🤖 Anime Ranger X Delivery Bot ✨",
-        avatar_url = "https://i.imgur.com/your-bot-avatar.gif",
+        username = "Anime Ranger X Delivery Bot",
         embeds = {embed}
     })
+
+    print("🔄 กำลังส่ง payload...")
 
     local success, response = pcall(function()
         return http_request({
@@ -328,18 +346,34 @@ discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTim
     end)
 
     if success then
-        print("✅ Webhook ส่งสำเร็จพร้อมสีสวย!")
+        print("✅ Webhook ส่งสำเร็จ!")
     else
         warn("❌ Webhook ส่งไม่สำเร็จ: " .. tostring(response))
         warn("Debug - URL: " .. tostring(Settings.DiscordURL))
-        warn("Debug - Payload: " .. payload)
+        warn("Debug - Payload length: " .. string.len(payload))
     end
 end
+
+-- Setup Discord Event Listener พร้อมระบบจับเวลา
+if webhookSupported then
+    spawn(function()
+        -- ฟัง GameStart (เริ่มจับเวลา)
+        local gameStartConnection
+        gameStartConnection = RunService.Heartbeat:Connect(function()
+            if workspace:FindFirstChild('Building') and not GameTimer.isGameRunning then
+                GameTimer:Start()
+            end
+        end)
 
         -- ฟัง GameEnd (หยุดจับเวลาและส่ง webhook)
         local gameEndRemote = replicated:WaitForChild("Remote"):WaitForChild("Client"):WaitForChild("UI"):WaitForChild("GameEndedUI")
         gameEndRemote.OnClientEvent:Connect(function()
-            if not Settings.DiscordEnabled then return end
+            print("🎯 เกมจบ! กำลังเตรียมส่ง webhook...")
+            
+            if not Settings.DiscordEnabled then 
+                print("❌ Discord Webhook ถูกปิดใช้งาน")
+                return 
+            end
             
             local currentTime = tick()
             
@@ -351,14 +385,22 @@ end
             
             lastSentTime = currentTime
             local playTime = GameTimer:Stop() -- หยุดจับเวลาและเก็บค่า
-            print("🎯 เกมจบ! กำลังส่ง webhook...")
-
+            
             -- รอให้ข้อมูลอัพเดตก่อนส่ง
             task.spawn(function()
                 local resultData = discordWebhook.getPlayerData()
                 local rewards = discordWebhook.getRewards()
                 local worldInfo = GameDataSystem.GetWorldInfo()
                 local mapName = worldInfo.FullMapName
+
+                print("📊 ข้อมูลที่จะส่ง:")
+                print("- Map:", mapName)
+                print("- Time:", playTime)
+                print("- Gems:", resultData.gems)
+                print("- Gold:", resultData.golds)
+                print("- RC Cells:", resultData.rcCells)
+                print("- Fall Currency:", resultData.fallCurrency)
+                print("- Rewards:", #rewards)
 
                 discordWebhook.sendToDiscord(resultData, rewards, mapName, playTime)
             end)
