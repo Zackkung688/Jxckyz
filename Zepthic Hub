@@ -313,7 +313,7 @@ discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTim
     }
 
     local payload = HttpService:JSONEncode({
-        username = "🤖 Anime Ranger X Delivery Bot ✨",
+        username = "Zepthic Hub",
         avatar_url = "https://i.imgur.com/your-bot-avatar.gif",
         embeds = {embed}
     })
