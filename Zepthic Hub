@@ -276,47 +276,73 @@ discordWebhook.getPlayerData = function()
     }
 end
 
--- แก้ไขฟังก์ชันดึงข้อมูล Player (ตรง Fall Currency)
+-- แก้ไขฟังก์ชันดึงข้อมูล Player (เพิ่มการตรวจสอบ)
 discordWebhook.getPlayerData = function()
-    local dataPath = replicated:FindFirstChild("Player_Data")
-    if not dataPath then return {} end
+    local success, result = pcall(function()
+        local dataPath = replicated:FindFirstChild("Player_Data")
+        if not dataPath then return {} end
 
-    local myData = dataPath:FindFirstChild(LocalPlayer.Name)
-    if not myData then return {} end
-    local stats = myData:FindFirstChild("Data")
-    if not stats then return {} end
+        local myData = dataPath:FindFirstChild(LocalPlayer.Name)
+        if not myData then return {} end
+        
+        local stats = myData:FindFirstChild("Data")
+        if not stats then return {} end
 
-    return {
-        gems = stats:FindFirstChild("Gem") and stats.Gem.Value or 0,
-        golds = stats:FindFirstChild("Gold") and stats.Gold.Value or 0,
-        rcCells = stats:FindFirstChild("RCCells") and stats.RCCells.Value or 0,
-        -- แก้ไขตรงนี้: ใส่ ["Fall Currency"] แทน .Fall Currency
-        fallcurrency = stats:FindFirstChild("Fall Currency") and stats["Fall Currency"].Value or 0
-    }
+        -- ใช้การตรวจสอบที่ปลอดภัยกว่า
+        local function getSafeStat(statName)
+            local stat = stats:FindFirstChild(statName)
+            return stat and stat.Value or 0
+        end
+
+        return {
+            gems = getSafeStat("Gem"),
+            golds = getSafeStat("Gold"), 
+            rcCells = getSafeStat("RCCells"),
+            fallcurrency = getSafeStat("Fall Currency") -- ใช้ FindFirstChild แทน
+        }
+    end)
+    
+    if success and result then
+        return result
+    else
+        print("Warning: Could not get player data")
+        return {gems = 0, golds = 0, rcCells = 0, fallcurrency = 0}
+    end
 end
 
--- แก้ไขฟังก์ชัน getRewards (เปลี่ยน icon และ format)
+-- แก้ไขฟังก์ชัน getRewards (ไม่มี emoji)
 discordWebhook.getRewards = function()
     local rewards = {}
-    if not LocalPlayer:FindFirstChild("RewardsShow") then return rewards end
+    
+    local success, result = pcall(function()
+        local rewardsShow = LocalPlayer:FindFirstChild("RewardsShow")
+        if not rewardsShow then return {} end
 
-    -- รอสักครู่ให้ RewardsShow อัพเดต
-    task.wait(1)
+        -- รอให้ข้อมูลโหลด แต่ไม่รอนาน
+        local waitTime = 0
+        while waitTime < 2 and #rewardsShow:GetChildren() == 0 do
+            task.wait(0.1)
+            waitTime = waitTime + 0.1
+        end
 
-    for _, folder in pairs(LocalPlayer.RewardsShow:GetChildren()) do
-        if folder:IsA("Folder") then
-            local amount = folder:FindFirstChild("Amount")
-            if amount and (amount:IsA("IntValue") or amount:IsA("NumberValue")) and amount.Value > 0 then
-                -- ไม่ใส่ emoji icon แล้ว ใช้แค่ + เฉยๆ
-                table.insert(rewards, "+ " .. amount.Value .. " " .. folder.Name)
+        local rewardsList = {}
+        for _, folder in pairs(rewardsShow:GetChildren()) do
+            if folder:IsA("Folder") then
+                local amount = folder:FindFirstChild("Amount")
+                if amount and (amount:IsA("IntValue") or amount:IsA("NumberValue")) and amount.Value > 0 then
+                    -- ไม่มี emoji หรือ icon ใดๆ เลย
+                    table.insert(rewardsList, amount.Value .. " " .. folder.Name)
+                end
             end
         end
-    end
-
-    return rewards
+        
+        return rewardsList
+    end)
+    
+    return success and result or {}
 end
 
--- แก้ไขฟังก์ชัน sendToDiscord (เปลี่ยน format)
+-- แก้ไขฟังก์ชัน sendToDiscord (ไม่มี emoji)
 discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTime)
     if not Settings.DiscordEnabled or not webhookSupported then
         return
@@ -324,21 +350,21 @@ discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTim
 
     -- ตรวจสอบ URL
     if not Settings.DiscordURL or Settings.DiscordURL == "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL" then
-        warn("❌ Discord Webhook URL ไม่ถูกต้อง")
+        warn("Discord Webhook URL not configured properly")
         return
     end
 
-    local rewardText = (#rewardList > 0) and table.concat(rewardList, "\n") or "- No Rewards"
+    local rewardText = (#rewardList > 0) and table.concat(rewardList, "\n") or "No Rewards"
 
     local embed = {
-        title = "GAME IS COMPLETE!!!🍀",
+        title = "# GAME COMPLETED!",
         color = 0x99ff33,
         fields = {
-            { name = " Player", value = LocalPlayer.Name, inline = false },
+            { name = "Player", value = LocalPlayer.Name, inline = false },
             {
-                name = "📊 Results (Current Stats):", -- เปลี่ยนเป็น Results
+                name = "Results",
                 value = string.format(
-                    "**Map:** %s\n**Time:** %s\n- Gems: **%s**\n- Gold: **%s**\n- RC Cells: **%s**\n- Fall Currency: **%s**",
+                    "Map: %s\nTime: %s\nGems: %s\nGold: %s\nRC Cells: %s\nFall Currency: %s",
                     mapName,
                     playTime,
                     tostring(resultData.gems),
@@ -349,18 +375,17 @@ discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTim
                 inline = false
             },
             {
-                name = "🎁 Rewards (Earned This Game):", -- เปลี่ยนเป็น Rewards
+                name = "Rewards",
                 value = rewardText,
                 inline = false
             }
         },
-        footer = { text = "discord.gg/Jaabook  •  " .. os.date("%H:%M:%S") },
+        footer = { text = "Zepthic ARX - " .. os.date("%H:%M:%S") },
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
 
     local payload = HttpService:JSONEncode({
-        username = "Zepthic Hub",
-        avatar_url = "https://tr.rbxcdn.com/180DAY-c16971484f933ef370edd236f005460c/150/150/Image/Webp/noFilter",
+        username = "Zepthic ARX",
         embeds = {embed}
     })
 
@@ -374,36 +399,16 @@ discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTim
     end)
 
     if success then
-        print("✅🌈 Webhook ส่งสำเร็จพร้อมสีสวย!")
+        print("Webhook sent successfully")
     else
-        warn("❌ Webhook ส่งไม่สำเร็จ: " .. tostring(response))
+        warn("Webhook failed:", tostring(response))
     end
 end
 
--- ทางเลือก: ถ้าอยากให้ไม่มี icon เลย
-discordWebhook.getRewardsNoIcon = function()
-    local rewards = {}
-    if not LocalPlayer:FindFirstChild("RewardsShow") then return rewards end
-
-    task.wait(1)
-
-    for _, folder in pairs(LocalPlayer.RewardsShow:GetChildren()) do
-        if folder:IsA("Folder") then
-            local amount = folder:FindFirstChild("Amount")
-            if amount and (amount:IsA("IntValue") or amount:IsA("NumberValue")) and amount.Value > 0 then
-                -- ไม่มี + หรือ - เลย แค่ตัวเลขกับชื่อ
-                table.insert(rewards, amount.Value .. " " .. folder.Name)
-            end
-        end
-    end
-
-    return rewards
-end
-
--- Setup Discord Event Listener พร้อมระบบจับเวลา
+-- แก้ไขระบบตรวจจับ Game End (ป้องกัน infinite yield)
 if webhookSupported then
     spawn(function()
-        -- ฟัง GameStart (เริ่มจับเวลา)
+        -- ตรวจสอบ GameStart
         local gameStartConnection
         gameStartConnection = RunService.Heartbeat:Connect(function()
             if workspace:FindFirstChild('Building') and not GameTimer.isGameRunning then
@@ -411,33 +416,40 @@ if webhookSupported then
             end
         end)
 
-        -- ฟัง GameEnd (หยุดจับเวลาและส่ง webhook)
-        local gameEndRemote = replicated:WaitForChild("Remote"):WaitForChild("Client"):WaitForChild("UI"):WaitForChild("GameEndedUI")
-        gameEndRemote.OnClientEvent:Connect(function()
-            if not Settings.DiscordEnabled then return end
-            
-            local currentTime = tick()
-            
-            -- ป้องกันการส่งซ้ำใน 15 วินาที
-            if currentTime - lastSentTime < COOLDOWN_TIME then
-                print("⏳ ยังไม่ครบ cooldown, ข้ามการส่ง webhook")
-                return
-            end
-            
-            lastSentTime = currentTime
-            local playTime = GameTimer:Stop() -- หยุดจับเวลาและเก็บค่า
-            print("🎯 เกมจบ! กำลังส่ง webhook...")
-
-            -- รอให้ข้อมูลอัพเดตก่อนส่ง
-            task.spawn(function()
-                local resultData = discordWebhook.getPlayerData()
-                local rewards = discordWebhook.getRewards()
-                local worldInfo = GameDataSystem.GetWorldInfo()
-                local mapName = worldInfo.FullMapName
-
-                discordWebhook.sendToDiscord(resultData, rewards, mapName, playTime)
-            end)
+        -- รอ Remote อย่างปลอดภัย
+        local success, gameEndRemote = pcall(function()
+            return replicated:WaitForChild("Remote", 10):WaitForChild("Client", 5):WaitForChild("UI", 5):WaitForChild("GameEndedUI", 5)
         end)
+        
+        if success and gameEndRemote then
+            gameEndRemote.OnClientEvent:Connect(function()
+                if not Settings.DiscordEnabled then return end
+                
+                local currentTime = tick()
+                
+                -- Cooldown system
+                if currentTime - lastSentTime < COOLDOWN_TIME then
+                    print("Webhook cooldown active, skipping...")
+                    return
+                end
+                
+                lastSentTime = currentTime
+                local playTime = GameTimer:Stop()
+                print("Game ended, sending webhook...")
+
+                -- ส่ง webhook
+                task.spawn(function()
+                    local resultData = discordWebhook.getPlayerData()
+                    local rewards = discordWebhook.getRewards()
+                    local worldInfo = GameDataSystem.GetWorldInfo()
+                    local mapName = worldInfo.FullMapName
+
+                    discordWebhook.sendToDiscord(resultData, rewards, mapName, playTime)
+                end)
+            end)
+        else
+            warn("Could not find GameEndedUI remote, webhook may not work properly")
+        end
     end)
 end
 
