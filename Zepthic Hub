@@ -274,28 +274,65 @@ discordWebhook.getItems = function()
     return items
 end
 
--- ฟังก์ชันส่ง Discord Embed (อัปเดต)
+-- ฟังก์ชันรวม RewardsShow + Items
+local function mergeRewardsWithItems(rewardList, items)
+    local merged = {}
+
+    -- ใส่ข้อมูลจาก inventory ก่อน
+    for _, item in ipairs(items) do
+        merged[item.name] = {
+            baseAmount = item.amount,
+            gained = 0,
+            total = item.amount,
+            id = item.id
+        }
+    end
+
+    -- รวมกับรางวัลที่ได้
+    for _, reward in ipairs(rewardList) do
+        if not merged[reward.name] then
+            merged[reward.name] = {
+                baseAmount = 0,
+                gained = reward.amount,
+                total = reward.amount,
+                id = reward.id
+            }
+        else
+            merged[reward.name].gained = merged[reward.name].gained + reward.amount
+            merged[reward.name].total = merged[reward.name].baseAmount + merged[reward.name].gained
+        end
+    end
+
+    return merged
+end
+
+-- ฟังก์ชันส่ง Discord
 discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTime)
     if not Settings.DiscordEnabled or not webhookSupported then
         return
     end
-    
-    -- ฟอร์แมตรางวัลแบบ "- ItemName xจำนวน [ID]"
+
+    -- ดึง inventory ปัจจุบัน
+    local items = discordWebhook.getItems()
+
+    -- รวม RewardsShow + Items
+    local mergedRewards = mergeRewardsWithItems(rewardList, items)
+
+    -- ฟอร์แมตข้อความ
     local formattedRewards = {}
-    if #rewardList > 0 then
-        for _, reward in ipairs(rewardList) do
-            local amountText = reward.amount and tonumber(reward.amount) > 1 and ("x" .. tostring(reward.amount)) or "x1"
-            table.insert(formattedRewards, string.format("- %s %s [%s]", reward.name, amountText, tostring(reward.id)))
+    for name, data in pairs(mergedRewards) do
+        if data.gained > 0 then
+            table.insert(formattedRewards, string.format("- %s x%s [%s]", name, data.gained, tostring(data.total)))
         end
     end
     local rewardText = (#formattedRewards > 0) and table.concat(formattedRewards, "\n") or "❌ No Rewards"
-    
+
     local embed = {
         title = "[Update 6.5] Anime Ranger X",
         color = 0x00ff99,
         thumbnail = { 
             url = "https://tr.rbxcdn.com/180DAY-415e4717b8e0c8519766d4c5bfc6a240/256/256/Image/Webp/noFilter" 
-        }, -- รูปเกม 
+        },
         fields = {
             { name = "⭐ Name:", value = LocalPlayer.Name, inline = true },
             { name = "📊 Level:", value = tostring(resultData.level), inline = true },
@@ -322,8 +359,7 @@ discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTim
         footer = { text = "discord.gg/Zepthic  •  " .. os.date("%H:%M:%S") },
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
-    
-    -- เพิ่ม Gems / Golds / Traits (Reroll) แยกบล็อกเหมือนในภาพ
+
     local extraFields = {
         { name = "💎 Gems", value = tostring(resultData.gems), inline = true },
         { name = "🪙 Golds", value = tostring(resultData.golds), inline = true },
@@ -332,10 +368,10 @@ discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTim
     for _, f in ipairs(extraFields) do
         table.insert(embed.fields, f)
     end
-    
+
     local payload = HttpService:JSONEncode({
         username = "Zepthic Hub",
-        avatar_url = "https://tr.rbxcdn.com/180DAY-c16971484f933ef370edd236f005460c/150/150/Image/Png/noFilter", -- Avatar Bot
+        avatar_url = "https://tr.rbxcdn.com/180DAY-c16971484f933ef370edd236f005460c/150/150/Image/Png/noFilter",
         embeds = { embed }
     })
 
