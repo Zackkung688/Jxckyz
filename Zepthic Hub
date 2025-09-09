@@ -274,56 +274,28 @@ discordWebhook.getItems = function()
     return items
 end
 
--- ฟังก์ชันรวม RewardsShow + Items
-local function mergeRewardsWithItems(rewardList, items)
-    local merged = {}
-
-    -- ใส่ข้อมูลจาก inventory ก่อน
-    for _, item in ipairs(items) do
-        merged[item.name] = {
-            baseAmount = item.amount,
-            gained = 0,
-            total = item.amount,
-            id = item.id
-        }
-    end
-
-    -- รวมกับรางวัลที่ได้
-    for _, reward in ipairs(rewardList) do
-        if not merged[reward.name] then
-            merged[reward.name] = {
-                baseAmount = 0,
-                gained = reward.amount,
-                total = reward.amount,
-                id = reward.id
-            }
-        else
-            merged[reward.name].gained = merged[reward.name].gained + reward.amount
-            merged[reward.name].total = merged[reward.name].baseAmount + merged[reward.name].gained
-        end
-    end
-
-    return merged
-end
-
+-- ฟังก์ชันส่ง Discord Embed (เวอร์ชันกัน error + debug)
 discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTime)
     if not Settings.DiscordEnabled or not webhookSupported then
+        warn("❌ Webhook ปิดอยู่ หรือ executor ไม่รองรับ")
         return
     end
 
-    -- ✅ ดึงค่า Total Damage / Takedowns จาก leaderstats
+    -- กัน nil ทุกค่า
     local leaderstats = LocalPlayer:FindFirstChild("leaderstats")
-    local totalDmg = leaderstats and leaderstats:FindFirstChild("Total Damage") and leaderstats["Total Damage"].Value or 0
-    local takedowns = leaderstats and leaderstats:FindFirstChild("Takedowns") and leaderstats.Takedowns.Value or 0
+    local totalDmg = (leaderstats and leaderstats:FindFirstChild("Total Damage")) and leaderstats["Total Damage"].Value or 0
+    local takedowns = (leaderstats and leaderstats:FindFirstChild("Takedowns")) and leaderstats.Takedowns.Value or 0
 
-    -- รวม Rewards + Items
-    local items = discordWebhook.getItems()
-    local mergedRewards = mergeRewardsWithItems(rewardList, items)
+    local safe = function(v, default)
+        return (v ~= nil and v ~= "") and v or default
+    end
 
     local formattedRewards = {}
-    for name, data in pairs(mergedRewards) do
-        if data.gained > 0 then
-            table.insert(formattedRewards, string.format("- %s x%s [%s]", name, data.gained, tostring(data.total)))
+    if #rewardList > 0 then
+        for _, reward in ipairs(rewardList) do
+            local amount = safe(reward.amount, 1)
+            local id = safe(reward.id, "?")
+            table.insert(formattedRewards, string.format("- %s x%s [%s]", safe(reward.name, "Unknown"), tostring(amount), tostring(id)))
         end
     end
     local rewardText = (#formattedRewards > 0) and table.concat(formattedRewards, "\n") or "❌ No Rewards"
@@ -331,63 +303,71 @@ discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTim
     local embed = {
         title = "[Update 6.5] Anime Ranger X",
         color = 0x00ff99,
-        thumbnail = { 
-            url = "https://tr.rbxcdn.com/180DAY-415e4717b8e0c8519766d4c5bfc6a240/256/256/Image/Webp/noFilter" 
-        },
+        thumbnail = { url = "https://tr.rbxcdn.com/180DAY-415e4717b8e0c8519766d4c5bfc6a240/256/256/Image/Webp/noFilter" },
         fields = {
-            { name = "⭐ Name:", value = LocalPlayer.Name, inline = true },
-            { name = "📊 Level:", value = tostring(resultData.level), inline = true },
+            { name = "⭐ Name:", value = safe(LocalPlayer.Name, "?"), inline = true },
+            { name = "📊 Level:", value = tostring(safe(resultData.level, 0)), inline = true },
             {
-                name = "⏱️ Results x ข้อมูลที่เล่น",
+                name = "⏱️ Results",
                 value = string.format(
-                    "+ [%s] %s\n+ Total Time: %s\n+ Total DMG: %s\n+ Takedowns: %s",
-                    resultData.mode or "Story",
-                    mapName,
-                    playTime,
+                    "+ [%s] %s\n+ Total Time: %s\n+ Total DMG: %s\n+ Total Takedowns: %s",
+                    safe(resultData.mode, "Story"),
+                    safe(mapName, "?"),
+                    safe(playTime, "00:00"),
                     tostring(totalDmg),
                     tostring(takedowns)
                 ),
                 inline = false
             },
             {
-                name = "🏆 Rewards x รางวัลที่ได้รับ",
+                name = "🏆 Rewards",
                 value = rewardText,
                 inline = false
             }
         },
-        footer = { text = "discord.gg/Zepthic  •  " .. os.date("%H:%M:%S") },
+        footer = { text = "discord.gg/Zepthic • " .. os.date("%H:%M:%S") },
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
 
-    -- เพิ่ม Gems / Golds / Traits
     local extraFields = {
-        { name = "💎 Gems", value = tostring(resultData.gems), inline = true },
-        { name = "🪙 Golds", value = tostring(resultData.golds), inline = true },
-        { name = "🎭 Reroll", value = tostring(resultData.traits), inline = true }
+        { name = "💎 Gems", value = tostring(safe(resultData.gems, 0)), inline = true },
+        { name = "🪙 Golds", value = tostring(safe(resultData.golds, 0)), inline = true },
+        { name = "🎭 Reroll", value = tostring(safe(resultData.traits, 0)), inline = true }
     }
     for _, f in ipairs(extraFields) do
         table.insert(embed.fields, f)
     end
 
-    local payload = HttpService:JSONEncode({
-        username = "Zepthic Hub",
-        avatar_url = "https://tr.rbxcdn.com/180DAY-c16971484f933ef370edd236f005460c/150/150/Image/Png/noFilter",
-        embeds = { embed }
-    })
+    local payload
+    local success, err = pcall(function()
+        payload = HttpService:JSONEncode({
+            username = "Zepthic Hub",
+            avatar_url = "https://tr.rbxcdn.com/180DAY-c16971484f933ef370edd236f005460c/150/150/Image/Png/noFilter",
+            embeds = { embed }
+        })
+    end)
 
-    local success, response = pcall(function()
-        return http_request({
+    if not success then
+        warn("❌ JSON Encode Error:", err)
+        warn("📌 Debug embed:", embed)
+        return
+    end
+
+    -- ส่งจริง
+    local request = http_request or syn.request or fluxus.request or krnl.request
+    local ok, response = pcall(function()
+        return request({
             Url = Settings.DiscordURL,
             Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
+            Headers = { ["Content-Type"] = "application/json" },
             Body = payload
         })
     end)
 
-    if success then
-        print("✅🌈 Webhook ส่งสำเร็จเหมือนในรูป!")
+    if ok then
+        print("✅🌈 Webhook ส่งสำเร็จ!")
     else
-        warn("❌ Webhook ส่งไม่สำเร็จ: " .. tostring(response))
+        warn("❌ Webhook ส่งไม่สำเร็จ:", tostring(response))
     end
 end
 
