@@ -272,6 +272,7 @@ discordWebhook.getPlayerData = function()
         gems = stats:FindFirstChild("Gem") and stats.Gem.Value or 0,
         golds = stats:FindFirstChild("Gold") and stats.Gold.Value or 0,
         rcCells = stats:FindFirstChild("RCCells") and stats.RCCells.Value or 0
+        fallcurrency = stats:FindFirstChild("Fall Currency") and stats.Fall Currency.Value or 0
     }
 end
 
@@ -297,6 +298,8 @@ discordWebhook.getRewards = function()
                 elseif name:find("exp") then
                     icon = "+ "
                 elseif name:find("rccells") or name:find("cell") then
+                    icon = "+ "
+                elseif name:find("fall currency") then
                     icon = "+ "
                 elseif name:find("portal") then
                     icon = "+ "
@@ -328,12 +331,13 @@ discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTim
             {
                 name = "Result x ข้อมูลการเล่น: ",
                 value = string.format(
-                    "**Map:** %s\n**Time:** %s\n💎 Gems: **%s**\n🪙 Gold: **%s**\n🩸 RC.Cells: **%s**",
+                    "**Map:** %s\n**Time:** %s\n💎 Gems: **%s**\n🪙 Gold: **%s**\n🩸 RC.Cells: **%s**\n🍁 Fall Currency: **%s**",
                     mapName,
                     playTime,
                     tostring(resultData.gems),
                     tostring(resultData.golds),
-                    tostring(resultData.rcCells)
+                    tostring(resultData.rcCells),
+                    tostring(resultData.fallcurrency)
                 ),
                 inline = false
             },
