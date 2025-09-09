@@ -271,7 +271,7 @@ discordWebhook.getPlayerData = function()
     return {
         gems = stats:FindFirstChild("Gem") and stats.Gem.Value or 0,
         golds = stats:FindFirstChild("Gold") and stats.Gold.Value or 0,
-        rcCells = stats:FindFirstChild("RCCells") and stats.RCCells.Value or 0
+        rcCells = stats:FindFirstChild("RCCells") and stats.RCCells.Value or 0,
         fallcurrency = stats:FindFirstChild("Fall Currency") and stats.Fall Currency.Value or 0
     }
 end
