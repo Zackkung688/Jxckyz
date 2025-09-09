@@ -1,3 +1,4 @@
+--Content is user-generated and unverified.
 local replicated = game:GetService("ReplicatedStorage")
 local PathfindingService = game:GetService("PathfindingService")
 local vim = game:GetService("VirtualInputManager")
@@ -247,62 +248,8 @@ function GameDataSystem.GetAvailableChapters(worldId)
 	return chapters
 end
 
--- ตัวแปรสำหรับ Auto Join Webhooks
-local autoJoinWebhook = {
-    storyEnabled = false,
-    storyURL = "",
-    rangerEnabled = false,
-    rangerURL = ""
-}
-
--- ฟังก์ชันส่ง Auto Join Webhook
-discordWebhook.sendAutoJoinWebhook = function(mode, worldName, chapter, difficulty)
-    local webhookURL = ""
-    local enabled = false
-    
-    if mode == "Story" then
-        webhookURL = autoJoinWebhook.storyURL
-        enabled = autoJoinWebhook.storyEnabled
-    elseif mode == "Ranger" then
-        webhookURL = autoJoinWebhook.rangerURL
-        enabled = autoJoinWebhook.rangerEnabled
-    end
-    
-    if not enabled or not webhookSupported or webhookURL == "" then
-        return
-    end
-
-    local embed = {
-        title = "🎯 Auto Join Started",
-        color = 0x2196F3,
-        fields = {
-            { name = "👤 Player", value = LocalPlayer.Name, inline = true },
-            { name = "🎮 Mode", value = mode, inline = true },
-            { name = "🗺️ World", value = worldName, inline = true },
-            { name = "📖 Chapter", value = chapter or "N/A", inline = true },
-            { name = "⚔️ Difficulty", value = difficulty or "N/A", inline = true },
-            { name = "⏰ Time", value = os.date("%H:%M:%S"), inline = true }
-        },
-        footer = { 
-            text = "Anime Ranger X Auto Join",
-        },
-        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-    }
-
-    local payload = HttpService:JSONEncode({
-        username = "🤖 ARX Auto Join Bot",
-        embeds = {embed}
-    })
-
-    pcall(function()
-        http_request({
-            Url = webhookURL,
-            Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = payload
-        })
-    end)
-end
+-- Discord Webhook Functions
+local discordWebhook = {}
 
 -- รองรับ executor
 local http_request = http_request or syn and syn.request or request
@@ -312,7 +259,7 @@ local webhookSupported = http_request ~= nil
 local lastSentTime = 0
 local COOLDOWN_TIME = 15 -- วินาที
 
--- ฟังก์ชันดึงข้อมูล Player Data
+-- ฟังก์ชันดึง Result (ค่าอัพเดตล่าสุด)
 discordWebhook.getPlayerData = function()
     local dataPath = replicated:FindFirstChild("Player_Data")
     if not dataPath then return {} end
@@ -325,62 +272,11 @@ discordWebhook.getPlayerData = function()
     return {
         gems = stats:FindFirstChild("Gem") and stats.Gem.Value or 0,
         golds = stats:FindFirstChild("Gold") and stats.Gold.Value or 0,
-        rcCells = stats:FindFirstChild("RCCells") and stats.RCCells.Value or 0,
-        leaves = stats:FindFirstChild("Leaves") and stats.Leaves.Value or 0,
-        reroll = stats:FindFirstChild("Reroll") and stats.Reroll.Value or 0
+        rcCells = stats:FindFirstChild("RCCells") and stats.RCCells.Value or 0
     }
 end
 
--- ฟังก์ชันดึงข้อมูล Player Name และ Level
-discordWebhook.getPlayerInfo = function()
-    local success, result = pcall(function()
-        local dataPath = replicated:FindFirstChild("Player_Data")
-        if not dataPath then return { name = LocalPlayer.Name, level = 0 } end
-
-        local myData = dataPath:FindFirstChild(LocalPlayer.Name)
-        if not myData then return { name = LocalPlayer.Name, level = 0 } end
-        
-        local stats = myData:FindFirstChild("Data")
-        if not stats then return { name = LocalPlayer.Name, level = 0 } end
-
-        local level = stats:FindFirstChild("Level") and stats.Level.Value or 0
-        
-        return {
-            name = LocalPlayer.Name,
-            level = level
-        }
-    end)
-    
-    return result or { name = LocalPlayer.Name, level = 0 }
-end
-
--- ฟังก์ชันดึงข้อมูล Leaderboard (Damage & Takedowns)
-discordWebhook.getLeaderboardData = function()
-    local success, result = pcall(function()
-        -- หาข้อมูลจาก Leaderboard UI หรือ Game Stats
-        local leaderboard = LocalPlayer.PlayerGui:FindFirstChild("Leaderboard")
-        if not leaderboard then
-            -- ลองหาจากที่อื่น
-            local gameUI = LocalPlayer.PlayerGui:FindFirstChild("HUD")
-            if gameUI then
-                -- TODO: หา path ที่ถูกต้องสำหรับ damage และ takedowns
-                return {
-                    totalDamage = 0,
-                    totalTakedowns = 0
-                }
-            end
-        end
-        
-        return {
-            totalDamage = 0, -- จะต้องหา path ที่ถูกต้อง
-            totalTakedowns = 0 -- จะต้องหา path ที่ถูกต้อง
-        }
-    end)
-    
-    return result or { totalDamage = 0, totalTakedowns = 0 }
-end
-
--- ฟังก์ชันแปลง RewardsShow เป็น text (ไม่มี emoji)
+-- ฟังก์ชันแปลง RewardsShow เป็น text พร้อม emoji (รอให้ข้อมูลอัพเดต)
 discordWebhook.getRewards = function()
     local rewards = {}
     if not LocalPlayer:FindFirstChild("RewardsShow") then return rewards end
@@ -392,7 +288,24 @@ discordWebhook.getRewards = function()
         if folder:IsA("Folder") then
             local amount = folder:FindFirstChild("Amount")
             if amount and (amount:IsA("IntValue") or amount:IsA("NumberValue")) and amount.Value > 0 then
-                table.insert(rewards, amount.Value .. " " .. folder.Name)
+                local icon = ""
+                local name = folder.Name:lower()
+
+                if name:find("gem") then
+                    icon = "💎 "
+                elseif name:find("gold") then
+                    icon = "🪙 "
+                elseif name:find("exp") then
+                    icon = "⭐ "
+                elseif name:find("rccells") or name:find("cell") then
+                    icon = "🩸 "
+                elseif name:find("portal") then
+                    icon = "🌀 "
+                else
+                    icon = "🎁 "
+                end
+
+                table.insert(rewards, icon .. "x" .. amount.Value .. " " .. folder.Name)
             end
         end
     end
@@ -400,77 +313,45 @@ discordWebhook.getRewards = function()
     return rewards
 end
 
--- ฟังก์ชันส่ง Discord Embed (รูปแบบใหม่เหมือนรูป)
+-- ฟังก์ชันส่ง Discord Embed
 discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTime)
     if not Settings.DiscordEnabled or not webhookSupported then
         return
     end
 
-    local playerInfo = discordWebhook.getPlayerInfo()
-    local leaderboardData = discordWebhook.getLeaderboardData()
-
-    -- ฟอร์แมตรางวัลแบบ "- ItemName xจำนวน [ID]"
-    local formattedRewards = {}
-    if #rewardList > 0 then
-        for i, reward in ipairs(rewardList) do
-            -- แยก amount และ name จาก reward string เช่น "5 Gem"
-            local amount, name = reward:match("(%d+)%s+(.+)")
-            if amount and name then
-                local amountText = tonumber(amount) > 1 and ("x" .. amount) or "x1"
-                table.insert(formattedRewards, string.format("- %s %s [%d]", name, amountText, i))
-            else
-                table.insert(formattedRewards, string.format("- %s x1 [%d]", reward, i))
-            end
-        end
-    end
-    local rewardText = (#formattedRewards > 0) and table.concat(formattedRewards, "\n") or "❌ No Rewards"
+    local rewardText = (#rewardList > 0) and table.concat(rewardList, "\n") or "❌ No Rewards"
 
     local embed = {
-        title = "[Update 6.5] Anime Ranger X",
-        color = 0x00ff99,
-        thumbnail = { 
-            url = "https://tr.rbxcdn.com/180DAY-415e4717b8e0c8519766d4c5bfc6a240/256/256/Image/Webp/noFilter" 
-        },
+        title = "# GAME IS COMPLETED?!🍀🎮",
+        color = 0x99ff33,
         fields = {
-            { name = "⭐ Name:", value = LocalPlayer.Name, inline = true },
-            { name = "📊 Level:", value = tostring(playerInfo.level), inline = true },
+            { name = "👤 Player", value = LocalPlayer.Name, inline = false },
             {
-                name = "⏱️ Results x ข้อมูลที่เล่น",
+                name = "🏆 Current Stats",
                 value = string.format(
-                    "+ [Challenge] %s [Win]\n+ Wave %s\n+ Total Time: %s\n+ Total DMG: %s\n+ Eliminations: %s\n+ Total Money: %s",
+                    "**Map:** %s\n**Time:** %s\n💎 Gems: **%s**\n🪙 Gold: **%s**\n🩸 RC.Cells: **%s**",
                     mapName,
-                    tostring(leaderboardData.wave or "15"),
                     playTime,
-                    tostring(leaderboardData.totalDamage or "180,980"),
-                    tostring(leaderboardData.totalTakedowns or "261"),
-                    tostring(leaderboardData.totalMoney or "210,480")
+                    tostring(resultData.gems),
+                    tostring(resultData.golds),
+                    tostring(resultData.rcCells)
                 ),
                 inline = false
             },
             {
-                name = "🏆 Rewards x รางวัลที่ได้รับ",
+                name = "🎁 Session Rewards",
                 value = rewardText,
                 inline = false
             }
         },
-        footer = { text = "discord.gg/Zepthic  •  " .. os.date("%H:%M:%S") },
+        footer = { text = "discord.gg/Jaabook  •  " .. os.date("%H:%M:%S") },
         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
     }
 
-    -- เพิ่ม Gems / Golds / Traits (Reroll) แยกบล็อกเหมือนในภาพ
-    local extraFields = {
-        { name = "💎 Gems", value = tostring(resultData.gems), inline = true },
-        { name = "🪙 Golds", value = tostring(resultData.golds), inline = true },
-        { name = "🎭 Traits", value = tostring(resultData.reroll), inline = true }
-    }
-    for _, f in ipairs(extraFields) do
-        table.insert(embed.fields, f)
-    end
-
     local payload = HttpService:JSONEncode({
-        username = "Zepthic Hub",
-        avatar_url = "https://tr.rbxcdn.com/180DAY-c16971484f933ef370edd236f005460c/150/150/Image/Png/noFilter",
-        embeds = { embed }
+        username = "🤖 Anime Ranger X Delivery Bot ✨",
+        avatar_url = "https://i.imgur.com/your-bot-avatar.gif",
+        embeds = {embed}
     })
 
     local success, response = pcall(function()
@@ -483,7 +364,7 @@ discordWebhook.sendToDiscord = function(resultData, rewardList, mapName, playTim
     end)
 
     if success then
-        print("✅🌈 Webhook ส่งสำเร็จเหมือนในรูป!")
+        print("✅🌈 Webhook ส่งสำเร็จพร้อมสีสวย!")
     else
         warn("❌ Webhook ส่งไม่สำเร็จ: " .. tostring(response))
     end
@@ -623,8 +504,6 @@ func['JoinStory'] = (function()
 				end
 				if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).World.Value ~= _G.StoryMode then 
 					replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-World", {World = _G.StoryMode})
-					-- ส่ง webhook เมื่อเริ่ม auto join
-					discordWebhook.sendAutoJoinWebhook("Story", _G.StoryMode, _G.Chapter, _G.Difficulty)
 				end
 				if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).Chapter.Value ~= _G.StoryMode.."_".."Chapter".._G.Chapter then
 					replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Chapter", {Chapter = _G.StoryMode.."_".."Chapter".._G.Chapter})
@@ -655,8 +534,6 @@ func['JoinRanger'] = (function()
 			end
 			if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).World.Value ~= _G.World then 
 				replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-World", {World = "Ranger"})
-				-- ส่ง webhook เมื่อเริ่ม auto join ranger
-				discordWebhook.sendAutoJoinWebhook("Ranger", _G.World, _G.Act, "Ranger Mode")
 			end
 			if replicated.PlayRoom:FindFirstChild(LocalPlayer.Name).Chapter.Value ~= _G.World.."_".."RangerStage".._G.Act then
 				replicated:WaitForChild("Remote"):WaitForChild("Server"):WaitForChild("PlayRoom"):WaitForChild("Event"):FireServer("Change-Chapter", {Chapter = _G.World.."_".."RangerStage".._G.Act})
@@ -1219,7 +1096,7 @@ do
 	})
 	
 	-- Discord Tab
-	Tabs.Discord:AddSection("Game Completion Webhook")
+	Tabs.Discord:AddSection("Discord Webhook Settings")
 	
 	if not webhookSupported then
 		Tabs.Discord:AddParagraph({
@@ -1233,61 +1110,18 @@ do
 		})
 	end
 	
-	Toggle(Tabs.Discord, "Enable Game Completion Webhook", "DiscordEnabled")
+	Toggle(Tabs.Discord, "Enable Discord Notifications", "DiscordEnabled")
 	
 	Tabs.Discord:AddInput("DiscordURL", {
-        Title = "Game Completion Webhook URL",
+        Title = "Discord Webhook URL",
         Default = Settings.DiscordURL or "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL",
-        Placeholder = "Paste your Discord webhook URL for game completion",
+        Placeholder = "Paste your Discord webhook URL here",
         Numeric = false, 
         Finished = false,
         Callback = function(Value)
             Settings.DiscordURL = Value
 			_G.DiscordURL = Value
 			saveConfig()
-        end
-    })
-	
-	-- Auto Join Webhooks Section
-	Tabs.Discord:AddSection("Auto Join Story Webhook")
-	
-	local storyWebhookToggle = Tabs.Discord:AddToggle("StoryWebhookEnabled", { 
-		Title = "Enable Story Auto Join Webhook", 
-		Default = autoJoinWebhook.storyEnabled 
-	})
-	storyWebhookToggle:OnChanged(function(value)
-		autoJoinWebhook.storyEnabled = value
-	end)
-	
-	Tabs.Discord:AddInput("StoryWebhookURL", {
-        Title = "Story Auto Join Webhook URL",
-        Default = autoJoinWebhook.storyURL,
-        Placeholder = "Paste webhook URL for Story mode auto join notifications",
-        Numeric = false, 
-        Finished = false,
-        Callback = function(Value)
-            autoJoinWebhook.storyURL = Value
-        end
-    })
-	
-	Tabs.Discord:AddSection("Auto Join Ranger Webhook")
-	
-	local rangerWebhookToggle = Tabs.Discord:AddToggle("RangerWebhookEnabled", { 
-		Title = "Enable Ranger Auto Join Webhook", 
-		Default = autoJoinWebhook.rangerEnabled 
-	})
-	rangerWebhookToggle:OnChanged(function(value)
-		autoJoinWebhook.rangerEnabled = value
-	end)
-	
-	Tabs.Discord:AddInput("RangerWebhookURL", {
-        Title = "Ranger Auto Join Webhook URL",
-        Default = autoJoinWebhook.rangerURL,
-        Placeholder = "Paste webhook URL for Ranger mode auto join notifications",
-        Numeric = false, 
-        Finished = false,
-        Callback = function(Value)
-            autoJoinWebhook.rangerURL = Value
         end
     })
 	
