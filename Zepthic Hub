@@ -258,45 +258,15 @@ local webhookSupported = http_request ~= nil
 local lastSentTime = 0
 local COOLDOWN_TIME = 15 -- วินาที
 
--- ฟังก์ชันดึง Result (ค่าอัพเดตล่าสุด) พร้อม Fall Currency และ Trait Reroll
-discordWebhook.getPlayerData = function()
-    local dataPath = replicated:FindFirstChild("Player_Data")
-    if not dataPath then return {} end
-
-    local myData = dataPath:FindFirstChild(LocalPlayer.Name)
-    if not myData then return {} end
-    local stats = myData:FindFirstChild("Data")
-    local items = myData:FindFirstChild("Items")
-    if not stats or not items then return {} end
-
-    -- ฟังก์ชันช่วยดึงจำนวนจาก Folder > Amount
-    local function getItemAmount(folder)
-        if folder and folder:IsA("Folder") then
-            local amountObj = folder:FindFirstChild("Amount")
-            if amountObj and (amountObj:IsA("IntValue") or amountObj:IsA("NumberValue")) then
-                return amountObj.Value
-            end
-        end
-        return 0
-    end
-
-    return {
-        gems = stats:FindFirstChild("Gem") and stats.Gem.Value or 0,
-        golds = stats:FindFirstChild("Gold") and stats.Gold.Value or 0,
-        rcCells = stats:FindFirstChild("RCCells") and stats.RCCells.Value or 0,
-        fallCurrency = stats:FindFirstChild("Fall Currency") and stats["Fall Currency"].Value or 0,
-        traitReroll = getItemAmount(items:FindFirstChild("Trait Reroll"))
-    }
-end
-
--- ฟังก์ชันแปลง RewardsShow เป็น text พร้อม emoji + จำนวนที่มีทั้งหมด (รองรับทุกชั้น)
 discordWebhook.getRewards = function()
     local rewards = {}
     if not LocalPlayer:FindFirstChild("RewardsShow") then return rewards end
 
-    task.wait(1) -- รอสักครู่ให้ RewardsShow อัพเดต
+    task.wait(1)
 
-    local itemsFolder = replicated:WaitForChild("Player_Data"):WaitForChild(LocalPlayer.Name):WaitForChild("Items")
+    local playerData = replicated:WaitForChild("Player_Data"):WaitForChild(LocalPlayer.Name)
+    local stats = playerData:WaitForChild("Data")
+    local itemsFolder = playerData:WaitForChild("Items")
 
     -- ฟังก์ชันช่วยดึงจำนวนจาก Folder > Amount
     local function getItemAmount(folder)
@@ -311,20 +281,20 @@ discordWebhook.getRewards = function()
 
     -- ฟังก์ชันกำหนดไอคอนตามชื่อ
     local function getIcon(name)
-        name = name:lower()
-        if name:find("gem") then
+        local n = name:lower()
+        if n == "gem" then
             return "💎 "
-        elseif name:find("gold") then
+        elseif n == "gold" then
             return "🪙 "
-        elseif name:find("exp") then
+        elseif n == "exp" then
             return "⭐ "
-        elseif name:find("rccells") or name:find("cell") then
+        elseif n == "rccells" or n:find("cell") then
             return "🩸 "
-        elseif name:find("fall") then
+        elseif n == "fall currency" then
             return "🍁 "
-        elseif name:find("trait") then
+        elseif n == "trait reroll" then
             return "🧩 "
-        elseif name:find("portal") then
+        elseif n:find("portal") then
             return "🌀 "
         else
             return "🎁 "
@@ -335,25 +305,36 @@ discordWebhook.getRewards = function()
     for _, folder in pairs(LocalPlayer.RewardsShow:GetChildren()) do
         if folder:IsA("Folder") then
             local amountObj = folder:FindFirstChild("Amount")
-            if amountObj and (amountObj:IsA("IntValue") or amountObj:IsA("NumberValue")) and amountObj.Value > 0 then
+            if amountObj and amountObj.Value > 0 then
                 local name = folder.Name
+                local lowerName = name:lower()
                 local icon = getIcon(name)
 
-                -- จำนวนที่มีจริงจาก Items (รองรับ Folder ซ้อน)
                 local totalOwned = 0
-                local itemFolder = itemsFolder:FindFirstChild(name)
-                if itemFolder then
-                    if itemFolder:FindFirstChild("Amount") then
-                        totalOwned = getItemAmount(itemFolder)
-                    else
-                        for _, sub in pairs(itemFolder:GetChildren()) do
-                            totalOwned = totalOwned + getItemAmount(sub)
+
+                if lowerName == "fall currency" then
+                    -- ไปเอาจาก Data โดยตรง
+                    local stat = stats:FindFirstChild("Fall Currency")
+                    totalOwned = stat and stat.Value or 0
+                elseif lowerName == "trait reroll" then
+                    -- ไปเอาจาก Items > Trait Reroll
+                    totalOwned = getItemAmount(itemsFolder:FindFirstChild("Trait Reroll"))
+                else
+                    -- พวก Items ปกติ
+                    local itemFolder = itemsFolder:FindFirstChild(name)
+                    if itemFolder then
+                        if itemFolder:FindFirstChild("Amount") then
+                            totalOwned = getItemAmount(itemFolder)
+                        else
+                            for _, sub in pairs(itemFolder:GetChildren()) do
+                                totalOwned = totalOwned + getItemAmount(sub)
+                            end
                         end
                     end
                 end
 
-                -- ถ้าเป็น Gem / Gold / Exp ไม่ต้องใส่ [จำนวนที่มี]
-                if name:lower():find("gem") or name:lower():find("gold") or name:lower():find("exp") then
+                -- ถ้าเป็น gem / gold / exp ไม่ต้องใส่ [ ]
+                if lowerName == "gem" or lowerName == "gold" or lowerName == "exp" then
                     table.insert(rewards, string.format("%s x%d %s", icon, amountObj.Value, name))
                 else
                     table.insert(rewards, string.format("%s x%d %s [%d]", icon, amountObj.Value, name, totalOwned))
