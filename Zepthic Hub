@@ -247,67 +247,6 @@ function GameDataSystem.GetAvailableChapters(worldId)
 	return chapters
 end
 
--- ตัวแปรสำหรับ Auto Join Webhooks
-local autoJoinWebhook = {
-    storyEnabled = false,
-    storyURL = "",
-    rangerEnabled = false,
-    rangerURL = ""
-}
-
--- ฟังก์ชันส่ง Auto Join Webhook
-discordWebhook.sendAutoJoinWebhook = function(mode, worldName, chapter, difficulty)
-    local webhookURL = ""
-    local enabled = false
-    
-    if mode == "Story" then
-        webhookURL = autoJoinWebhook.storyURL
-        enabled = autoJoinWebhook.storyEnabled
-    elseif mode == "Ranger" then
-        webhookURL = autoJoinWebhook.rangerURL
-        enabled = autoJoinWebhook.rangerEnabled
-    end
-    
-    if not enabled or not webhookSupported or webhookURL == "" then
-        return
-    end
-
-    local embed = {
-        title = "🎯 Auto Join Started",
-        color = 0x2196F3,
-        fields = {
-            { name = "👤 Player", value = LocalPlayer.Name, inline = true },
-            { name = "🎮 Mode", value = mode, inline = true },
-            { name = "🗺️ World", value = worldName, inline = true },
-            { name = "📖 Chapter", value = chapter or "N/A", inline = true },
-            { name = "⚔️ Difficulty", value = difficulty or "N/A", inline = true },
-            { name = "⏰ Time", value = os.date("%H:%M:%S"), inline = true }
-        },
-        footer = { 
-            text = "Anime Ranger X Auto Join",
-        },
-        timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-    }
-
-    local payload = HttpService:JSONEncode({
-        username = "🤖 ARX Auto Join Bot",
-        embeds = {embed}
-    })
-
-    pcall(function()
-        http_request({
-            Url = webhookURL,
-            Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = payload
-        })
-    end)
-end
-
--- รองรับ executor
-local http_request = http_request or syn and syn.request or request
-local webhookSupported = http_request ~= nil
-
 -- ตัวแปรกันซ้ำที่แข็งแกร่งขึ้น
 local lastSentTime = 0
 local COOLDOWN_TIME = 15 -- วินาที
@@ -1245,49 +1184,6 @@ do
             Settings.DiscordURL = Value
 			_G.DiscordURL = Value
 			saveConfig()
-        end
-    })
-	
-	-- Auto Join Webhooks Section
-	Tabs.Discord:AddSection("Auto Join Story Webhook")
-	
-	local storyWebhookToggle = Tabs.Discord:AddToggle("StoryWebhookEnabled", { 
-		Title = "Enable Story Auto Join Webhook", 
-		Default = autoJoinWebhook.storyEnabled 
-	})
-	storyWebhookToggle:OnChanged(function(value)
-		autoJoinWebhook.storyEnabled = value
-	end)
-	
-	Tabs.Discord:AddInput("StoryWebhookURL", {
-        Title = "Story Auto Join Webhook URL",
-        Default = autoJoinWebhook.storyURL,
-        Placeholder = "Paste webhook URL for Story mode auto join notifications",
-        Numeric = false, 
-        Finished = false,
-        Callback = function(Value)
-            autoJoinWebhook.storyURL = Value
-        end
-    })
-	
-	Tabs.Discord:AddSection("Auto Join Ranger Webhook")
-	
-	local rangerWebhookToggle = Tabs.Discord:AddToggle("RangerWebhookEnabled", { 
-		Title = "Enable Ranger Auto Join Webhook", 
-		Default = autoJoinWebhook.rangerEnabled 
-	})
-	rangerWebhookToggle:OnChanged(function(value)
-		autoJoinWebhook.rangerEnabled = value
-	end)
-	
-	Tabs.Discord:AddInput("RangerWebhookURL", {
-        Title = "Ranger Auto Join Webhook URL",
-        Default = autoJoinWebhook.rangerURL,
-        Placeholder = "Paste webhook URL for Ranger mode auto join notifications",
-        Numeric = false, 
-        Finished = false,
-        Callback = function(Value)
-            autoJoinWebhook.rangerURL = Value
         end
     })
 	
