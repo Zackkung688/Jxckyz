@@ -849,10 +849,54 @@ do
 	Toggle(Tabs.GamePlay, "Marco Playback", "Playbackmarco")
 	Toggle(Tabs.GamePlay, "Marco Recording", "RecordingMarco")
 	
-	Tabs.GamePlay:AddSection("Game Actions Info")
+	Tabs.GamePlay:AddSection("Manual Recording Functions")
 	Tabs.GamePlay:AddParagraph({
-		Title = "Recorded Actions:",
-		Content = "• spawn_unit - Place units\n• upgrade_unit_ingame - Upgrade units\n• cycle_priority - Change targeting\n• sell_unit_ingame - Sell units"
+		Title = "How to Record Actions:",
+		Content = "1. Enable 'Marco Recording'\n2. Use the manual recording functions below\n3. Your actions will be saved to the selected marco file\n\nNote: Automatic recording has been disabled to prevent hook overflow errors."
+	})
+	
+	Tabs.GamePlay:AddButton({
+		Title = "Record Spawn Unit Example",
+		Description = "Example: Record spawning a unit",
+		Callback = function()
+			if not _G.RecordingMarco then
+				Fluent:Notify({
+					Title = "Marco Recording",
+					Content = "Please enable Marco Recording first!",
+					Duration = 3
+				})
+				return
+			end
+			
+			-- Example spawn - you would replace these values
+			local unitId = "example_unit_id"
+			local position = Vector3.new(0, 100, 0)
+			local direction = Vector3.new(0, 0, 1)
+			
+			_G.RecordSpawnUnit(unitId, position, direction)
+			
+			Fluent:Notify({
+				Title = "Marco Recording",
+				Content = "Recorded spawn unit action!",
+				Duration = 3
+			})
+		end
+	})
+	
+	Tabs.GamePlay:AddButton({
+		Title = "Show Marco Recording Status",
+		Description = "Check current recording status",
+		Callback = function()
+			local status = "Recording: " .. (_G.RecordingMarco and "ON" or "OFF")
+			status = status .. "\nCurrent Marco: " .. (_G.Marco or "None")
+			status = status .. "\nRecorded Actions: " .. (#_G.MarcoRecords or 0)
+			
+			Fluent:Notify({
+				Title = "Marco Status",
+				Content = status,
+				Duration = 5
+			})
+		end
 	})
 	
 	-- Games Tab
