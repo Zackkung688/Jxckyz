@@ -171,7 +171,7 @@ GameFunctions.AutoNext = function()
             end
             
             pcall(function()
-                ReplicatedStorage.endpoints.client_to_server.set_game_finished_vote:InvokeServer("next")
+                ReplicatedStorage.endpoints.client_to_server.set_game_finished_vote:InvokeServer("Next Story")
             end)
             wait(2)
         end)
@@ -465,7 +465,7 @@ Tabs.Settings:AddButton({
     Description = "Display all current settings",
     Callback = function()
         local info = string.format(
-            "Pod: %s\nLevel: %s\nDifficulty: %s\nChallenge Pod: %s\nAuto Story: %s\nAuto Challenge: %s\nAuto Retry: %s\nAuto Next: %s",
+            "Pod: %s\nLevel: %s\nDifficulty: %s\nChallenge Pod: %s\nAuto Story: %s\nAuto Challenge: %s\nAuto Retry: %s\nAuto Next: %s\nMarco Recording: %s\nMarco Playback: %s\nWhite Screen: %s",
             Settings.Pod,
             Settings.Level,
             Settings.Difficulty,
@@ -473,13 +473,66 @@ Tabs.Settings:AddButton({
             Settings.AutoJoinStory and "ON" or "OFF",
             Settings.AutoJoinChallenge and "ON" or "OFF",
             Settings.AutoRetry and "ON" or "OFF",
-            Settings.AutoNext and "ON" or "OFF"
+            Settings.AutoNext and "ON" or "OFF",
+            Settings.MarcoRecording and "ON" or "OFF",
+            Settings.MarcoPlayback and "ON" or "OFF",
+            Settings.WhiteScreen and "ON" or "OFF"
         )
         
         Fluent:Notify({
             Title = "Current Settings",
             Content = info,
-            Duration = 8
+            Duration = 10
+        })
+    end
+})
+
+Tabs.Settings:AddButton({
+    Title = "Save Config Now",
+    Description = "Manually save current configuration",
+    Callback = function()
+        SaveConfig()
+        Fluent:Notify({
+            Title = "Config Saved",
+            Content = "Configuration saved successfully!",
+            Duration = 3
+        })
+    end
+})
+
+Tabs.Settings:AddButton({
+    Title = "Reset All Settings",
+    Description = "Reset to default settings",
+    Callback = function()
+        Settings = {
+            Pod = "P1",
+            Level = "namek_level_1", 
+            Difficulty = "Normal",
+            ChallengePod = "ChallengePod1",
+            AutoJoinStory = false,
+            AutoJoinChallenge = false,
+            AutoRetry = false,
+            AutoNext = false,
+            WhiteScreen = false,
+            MarcoRecording = false,
+            MarcoPlayback = false,
+            CurrentMarco = ""
+        }
+        SaveConfig()
+        
+        -- Update all toggles
+        StoryToggle:SetValue(false)
+        ChallengeToggle:SetValue(false)
+        RetryToggle:SetValue(false)
+        NextToggle:SetValue(false)
+        WhiteScreenToggle:SetValue(false)
+        MarcoRecordingToggle:SetValue(false)
+        MarcoPlaybackToggle:SetValue(false)
+        
+        Fluent:Notify({
+            Title = "Settings Reset",
+            Content = "All settings reset to defaults!",
+            Duration = 3
         })
     end
 })
