@@ -94,7 +94,8 @@ local AllSeeds = {
 	"Strawberry Seed",
 	"Sunflower Seed",
 	"Tomatrio Seed",
-	"Watermelon Seed"
+	"Watermelon Seed",
+    "Mango Seed"
 }
 
 local AllGears = {
