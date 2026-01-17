@@ -871,8 +871,7 @@ local function CreateRarityFields(inventory, changedItems, highlightChanges)
                 if highlightChanges and changedItems[item.name] then
                     local change = changedItems[item.name]
                     local sign = (change > 0) and "+" or ""
-                    line = line .. " [" .. sign .. change .. "]"
-                    line = "**" .. line .. "**"
+                    line = line .. " [" .. sign .. change .. "] "
                 end
                 
                 table.insert(lines, line)
