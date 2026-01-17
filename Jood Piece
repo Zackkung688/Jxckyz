@@ -807,25 +807,46 @@ local function PostWebhook(payload)
     return success, result
 end
 
---- ดึงข้อมูลไอเทมทั้งหมดจาก InvData
+--- ดึงข้อมูลไอเทมทั้งหมดจาก InvData (รองรับทั้ง IntValue และ NumberValue)
 local function GetCurrentInventory()
     local inventory = {}
     pcall(function()
+        -- เช็คว่า InvData มีหรือไม่
+        if not Client:FindFirstChild("InvData") then
+            warn("⚠️ InvData not found!")
+            return
+        end
+
         for rarity, list in pairs(RarityItems) do
             for _, item in ipairs(list) do
                 local itemValue = Client.InvData:FindFirstChild(item)
-                if itemValue and itemValue:IsA("IntValue") then
-                    local currentAmount = itemValue.Value
+                
+                -- รองรับทั้ง IntValue, NumberValue, และ ValueBase อื่นๆ
+                if itemValue and (
+                    itemValue:IsA("IntValue") or 
+                    itemValue:IsA("NumberValue") or 
+                    itemValue:IsA("ValueBase")
+                ) then
+                    local currentAmount = tonumber(itemValue.Value) or 0
+                    
                     if currentAmount > 0 then
                         inventory[item] = {
                             amount = currentAmount,
                             rarity = rarity
                         }
+                        -- Debug log
+                        print(string.format("✅ Found: %s x%d (%s)", item, currentAmount, rarity))
                     end
                 end
             end
         end
     end)
+    
+    -- Debug: แสดงจำนวน items ที่เจอ
+    local count = 0
+    for _ in pairs(inventory) do count = count + 1 end
+    print(string.format("📦 Total items in inventory: %d", count))
+    
     return inventory
 end
 
