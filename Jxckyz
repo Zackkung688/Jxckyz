@@ -901,55 +901,173 @@ local function CreateRarityFields(inventory, changedItems, highlightChanges)
     return fields
 end
 
---- ส่ง Status Webhook (ส่งทุก 1-60 นาที)
+--- ส่ง Status Webhook พร้อมแสดงการเปลี่ยนแปลง
 local function SendStatusWebhook()
     local data = Client.Data
     if not data then return false end
 
     local inventory = GetCurrentInventory()
+    
+    -- จัดกลุ่ม items ตาม rarity (ทุกแบบ)
+local rarityGroups = {
+    Secret = {},
+    Event = {},
+    Legendary = {},
+    Rare = {},
+    Uncommon = {},
+    Common = {}
+}
+    
+    for itemName, itemData in pairs(inventory) do
+        local rarity = itemData.rarity
+        if rarityGroups[rarity] then
+            table.insert(rarityGroups[rarity], {
+                name = itemName,
+                amount = itemData.amount
+            })
+        end
+    end
+    
+    -- ฟังก์ชันสำหรับแสดงการเปลี่ยนแปลง
+    local function FormatItemWithChange(itemName, currentAmount)
+        local lastAmount = LastItemCount[itemName] or currentAmount
+        local change = currentAmount - lastAmount
+        
+        if change > 0 then
+            return string.format("%s x%d (+%d)", itemName, currentAmount, change)
+        elseif change < 0 then
+            return string.format("%s x%d (%d)", itemName, currentAmount, change)
+        else
+            return string.format("%s x%d", itemName, currentAmount)
+        end
+    end
+    
+    -- สร้าง fields
     local fields = {
         {
-            name = "Player Info",
-            value = string.format(
-                "```\nName: %s\nUserID: %s```",
-                Client.Name,
+            name = "**Player Info**",
+            value = string.format("```\nName: %s\nUserID: %s```", 
+                Client.Name, 
                 tostring(Client.UserId)
             ),
             inline = false
         },
         {
-            name = "Server Info",
+            name = "**Server Info**",
             value = string.format("```\nJobId: %s```", game.JobId),
             inline = false
         },
         {
-            name = "Beli",
+            name = "**Beli**",
             value = "```" .. FormatNumber(data.Beli.Value) .. "```",
             inline = true
         },
         {
-            name = "Gems",
+            name = "**Gems**",
             value = "```" .. FormatNumber(data.Gems.Value) .. "```",
             inline = true
         },
         {
-            name = "Level",
+            name = "**Level**",
             value = "```" .. tostring(data.Level.Value) .. "```",
             inline = true
         }
     }
+    
+    -- เพิ่ม Secret Items พร้อมการเปลี่ยนแปลง
+    if #rarityGroups.Secret > 0 then
+        table.sort(rarityGroups.Secret, function(a, b) return a.name < b.name end)
+        local lines = {}
+        for _, item in ipairs(rarityGroups.Secret) do
+            table.insert(lines, FormatItemWithChange(item.name, item.amount))
+        end
+        table.insert(fields, {
+            name = "**Secret Items**",
+            value = "```\n" .. table.concat(lines, "\n") .. "```",
+            inline = false
+        })
+    end
+    
+    -- เพิ่ม Event Items พร้อมการเปลี่ยนแปลง
+    if #rarityGroups.Event > 0 then
+        table.sort(rarityGroups.Event, function(a, b) return a.name < b.name end)
+        local lines = {}
+        for _, item in ipairs(rarityGroups.Event) do
+            table.insert(lines, FormatItemWithChange(item.name, item.amount))
+        end
+        table.insert(fields, {
+            name = "**Event Items**",
+            value = "```\n" .. table.concat(lines, "\n") .. "```",
+            inline = false
+        })
+    end
+    
+    -- เพิ่ม Legendary Items พร้อมการเปลี่ยนแปลง
+    if #rarityGroups.Legendary > 0 then
+        table.sort(rarityGroups.Legendary, function(a, b) return a.name < b.name end)
+        local lines = {}
+        for _, item in ipairs(rarityGroups.Legendary) do
+            table.insert(lines, FormatItemWithChange(item.name, item.amount))
+        end
+        table.insert(fields, {
+            name = "**Legendary Items**",
+            value = "```\n" .. table.concat(lines, "\n") .. "```",
+            inline = false
+        })
+    end
 
-    -- เพิ่ม Inventory Fields (ไม่มีไฮไลท์)
-    local inventoryFields = CreateRarityFields(inventory, {}, false)
-    for _, field in ipairs(inventoryFields) do
-        table.insert(fields, field)
+-- เพิ่ม Rare Items
+if #rarityGroups.Rare > 0 then
+    table.sort(rarityGroups.Rare, function(a, b) return a.name < b.name end)
+    local lines = {}
+    for _, item in ipairs(rarityGroups.Rare) do
+        table.insert(lines, FormatItemWithChange(item.name, item.amount))
+    end
+    table.insert(fields, {
+        name = "**Rare Items**",
+        value = "```\n" .. table.concat(lines, "\n") .. "```",
+        inline = false
+    })
+end
+
+-- เพิ่ม Uncommon Items
+if #rarityGroups.Uncommon > 0 then
+    table.sort(rarityGroups.Uncommon, function(a, b) return a.name < b.name end)
+    local lines = {}
+    for _, item in ipairs(rarityGroups.Uncommon) do
+        table.insert(lines, FormatItemWithChange(item.name, item.amount))
+    end
+    table.insert(fields, {
+        name = "**Uncommon Items**",
+        value = "```\n" .. table.concat(lines, "\n") .. "```",
+        inline = false
+    })
+end
+
+-- เพิ่ม Common Items
+if #rarityGroups.Common > 0 then
+    table.sort(rarityGroups.Common, function(a, b) return a.name < b.name end)
+    local lines = {}
+    for _, item in ipairs(rarityGroups.Common) do
+        table.insert(lines, FormatItemWithChange(item.name, item.amount))
+    end
+    table.insert(fields, {
+        name = "**Common Items**",
+        value = "```\n" .. table.concat(lines, "\n") .. "```",
+        inline = false
+    })
+end
+
+    -- อัปเดต LastItemCount
+    for itemName, itemData in pairs(inventory) do
+        LastItemCount[itemName] = itemData.amount
     end
 
     local payload = {
         username = "Jxckyz Hub",
         avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png",
         embeds = {{
-            title = "Jood Piece Inventory Status",
+            title = "**Jood Piece Inventory Status**",
             description = "**Current Player Statistics & Inventory**",
             color = 0xFF0000,
             fields = fields,
@@ -969,82 +1087,6 @@ local function SendStatusWebhook()
 
     PostWebhook(payload)
     LastWebhookTime = os.time()
-end
-
---- ส่ง Alert เมื่อ Secret เปลี่ยนแปลงเท่านั้น
-local function SendItemChangeAlert(changedItems)
-    local inventory = GetCurrentInventory()
-    
-    -- กรองเฉพาะ Secret ที่เปลี่ยนแปลง
-    local secretItems = {}
-    
-    for item, change in pairs(changedItems) do
-        if inventory[item] and inventory[item].rarity == "Secret" then
-            secretItems[item] = change
-        end
-    end
-
-    -- ถ้าไม่มี Secret เปลี่ยน ไม่ต้องส่ง
-    if not next(secretItems) then 
-        return 
-    end
-
-    -- สร้าง field สำหรับ Secret ที่เปลี่ยนแปลง
-    local changeLines = {}
-    for item, change in pairs(secretItems) do
-        local sign = (change > 0) and "+" or ""
-        local line = string.format("**%s** x%d [%s%d]", 
-            item, 
-            inventory[item].amount,
-            sign,
-            change
-        )
-        table.insert(changeLines, line)
-    end
-
-    local fields = {
-        {
-            name = "Secret Items Changed",
-            value = table.concat(changeLines, "\n"),
-            inline = false
-        },
-        {
-            name = "Player",
-            value = "```" .. Client.Name .. "```",
-            inline = true
-        },
-        {
-            name = "Time",
-            value = "```" .. os.date("%H:%M:%S") .. "```",
-            inline = true
-        }
-    }
-
-    local payload = {
-        content = c().WebhookPingEveryone and "@everyone" or "",
-        username = "Jxckyz Hub - Secret Alert",
-        avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png",
-        embeds = {{
-            title = "🎉 Secret Item Changed!",
-            description = "**A Secret rarity item has been updated!**",
-            color = 0xFF0000,
-            fields = fields,
-            thumbnail = {
-                url = string.format(
-                    "https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=150&height=150&format=png",
-                    Client.UserId
-                )
-            },
-            footer = {
-                text = "Jxckyz Hub • Secret Alert",
-                icon_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png"
-            },
-            timestamp = DateTime.now():ToIsoDate()
-        }}
-    }
-
-    PostWebhook(payload)
-    print("📤 Sent Secret Webhook!")
 end
 
 --- ส่ง Test Webhook
