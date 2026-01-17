@@ -757,6 +757,14 @@ end
 local LastItemCount = {}
 local LastWebhookTime = 0
 
+--- แปลง Color3 เป็น Hex Code สำหรับ Discord
+local function Color3ToHex(color3)
+    local r = math.floor(color3.R * 255)
+    local g = math.floor(color3.G * 255)
+    local b = math.floor(color3.B * 255)
+    return string.format("0x%02X%02X%02X", r, g, b)
+end
+
 --- ส่ง Webhook ไปยัง Discord
 local function PostWebhook(payload)
     if not c().WebhookURL or c().WebhookURL == "" then 
@@ -801,6 +809,9 @@ local function GetCurrentInventory()
                         local rarity = rarityLabel.Text
                         local amountText = amountLabel.Text
                         
+                        -- ดึงสีจาก TextColor3
+                        local rarityColor = rarityLabel.TextColor3 or Color3.new(1, 1, 1)
+                        
                         -- แปลงจำนวนจาก text เป็นตัวเลข
                         local amount = tonumber(amountText) or 
                                      tonumber(amountText:match("x?%s*(%d+)")) or 
@@ -809,7 +820,8 @@ local function GetCurrentInventory()
                         if amount > 0 and itemName ~= "" and rarity ~= "" then
                             inventory[itemName] = {
                                 amount = amount,
-                                rarity = rarity
+                                rarity = rarity,
+                                color = rarityColor
                             }
                         end
                     end
@@ -824,47 +836,56 @@ end
 --- สร้าง Fields สำหรับแต่ละ Rarity
 local function CreateRarityFields(inventory, changedItems, highlightChanges)
     local fields = {}
-    local rarityOrder = {"Secret", "Event", "Legendary", "Rare" , "Uncommon" , "Common"}
+    local rarityGroups = {}
+    
+    -- จัดกลุ่ม items ตาม rarity
+    for itemName, data in pairs(inventory) do
+        if not rarityGroups[data.rarity] then
+            rarityGroups[data.rarity] = {
+                items = {},
+                color = data.color
+            }
+        end
+        table.insert(rarityGroups[data.rarity].items, {
+            name = itemName,
+            amount = data.amount
+        })
+    end
+    
+    -- เรียง rarity ตามลำดับ (ถ้ามี)
+    local rarityOrder = {"Secret", "Event", "Legendary", "Rare", "Uncommon", "Common"}
     
     for _, rarity in ipairs(rarityOrder) do
-        local lines = {}
-        local items = {}
-        
-        -- เก็บ items ตาม rarity
-        for itemName, data in pairs(inventory) do
-            if data.rarity == rarity then
-                table.insert(items, {
-                    name = itemName,
-                    amount = data.amount
+        if rarityGroups[rarity] then
+            local group = rarityGroups[rarity]
+            local lines = {}
+            
+            -- Sort items ตามชื่อ
+            table.sort(group.items, function(a, b) return a.name < b.name end)
+            
+            -- สร้าง lines
+            for _, item in ipairs(group.items) do
+                local line = item.name .. " x" .. item.amount
+                
+                -- เพิ่มไฮไลท์การเปลี่ยนแปลง
+                if highlightChanges and changedItems[item.name] then
+                    local change = changedItems[item.name]
+                    local sign = (change > 0) and "+" or ""
+                    line = line .. " [" .. sign .. change .. "]"
+                    line = "**" .. line .. "**"
+                end
+                
+                table.insert(lines, line)
+            end
+            
+            -- เพิ่ม field พร้อมกรอบ code block
+            if #lines > 0 then
+                table.insert(fields, {
+                    name = rarity .. " Items",
+                    value = "```\n" .. table.concat(lines, "\n") .. "```",
+                    inline = false
                 })
             end
-        end
-        
-        -- Sort ตามชื่อ
-        table.sort(items, function(a, b) return a.name < b.name end)
-        
-        -- สร้าง lines
-        for _, item in ipairs(items) do
-            local line = item.name .. " x" .. item.amount
-            
-            -- เพิ่มไฮไลท์การเปลี่ยนแปลง
-            if highlightChanges and changedItems[item.name] then
-                local change = changedItems[item.name]
-                local sign = (change > 0) and "+" or ""
-                line = line .. " [" .. sign .. change .. "]"
-                line = "**" .. line .. "**"
-            end
-            
-            table.insert(lines, line)
-        end
-        
-        -- เพิ่ม field ถ้ามี items
-        if #lines > 0 then
-            table.insert(fields, {
-                name = rarity .. " Items",
-                value = table.concat(lines, "\n"),
-                inline = false
-            })
         end
     end
     
@@ -919,7 +940,7 @@ local function SendStatusWebhook()
         username = "Jxckyz Hub",
         avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png",
         embeds = {{
-            title = "Jood Piece Inventory Info",
+            title = "Jood Piece Inventory Status",
             description = "**Current Player Statistics & Inventory**",
             color = 0xFF0000,
             fields = fields,
@@ -941,22 +962,25 @@ local function SendStatusWebhook()
     LastWebhookTime = os.time()
 end
 
---- ส่ง Alert เมื่อ Mythic/Special เปลี่ยนแปลง
+--- ส่ง Alert เมื่อ Secret/Event เปลี่ยนแปลง
 local function SendItemChangeAlert(changedItems)
     local inventory = GetCurrentInventory()
     
-    -- กรองเฉพาะ Mythic/Special ที่เปลี่ยนแปลง
-    local mythicSpecialChanges = {}
+    -- กรองเฉพาะ Secret//Event/ ที่เปลี่ยนแปลง
+    local importantRarities = {"Secret" , "Event"}
+    local hasImportantChange = false
+    
     for item, change in pairs(changedItems) do
         if inventory[item] then
             local rarity = inventory[item].rarity
-            if rarity == "Mythic" or rarity == "Special" then
-                mythicSpecialChanges[item] = change
+            if table.find(importantRarities, rarity) then
+                hasImportantChange = true
+                break
             end
         end
     end
 
-    if next(mythicSpecialChanges) == nil then return end
+    if not hasImportantChange then return end
 
     local fields = {
         {
@@ -982,8 +1006,8 @@ local function SendItemChangeAlert(changedItems)
         username = "Jxckyz Hub - Item Alert",
         avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png",
         embeds = {{
-            title = "Secret/Event Item Changed!",
-            description = "**Important items have been updated!**",
+            title = "Important Item Changed!",
+            description = "**Rare items have been updated!**",
             color = 0xFF0000,
             fields = fields,
             thumbnail = {
@@ -1014,7 +1038,7 @@ local function SendTestWebhook()
         avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png",
         embeds = {{
             title = "Webhook Test Successful!",
-            description = "**Your webhook is working perfectly!**\n\nYou will receive:\n• Status updates every 1-60 minutes\n• Instant alerts for Secret/Event changes",
+            description = "**Your webhook is working perfectly!**\n\nYou will receive:\n• Status Information everywhere\n• Instant alerts for rare item changes",
             color = 0x00FF00,
             fields = {
                 {
@@ -1044,7 +1068,7 @@ end
 -- ================================
 
 task.spawn(function()
-    while task.wait(0.5) do
+    while task.wait(1) do
         pcall(function()
             if not c().WebhookURL or c().WebhookURL == "" then return end
             
@@ -1062,7 +1086,7 @@ task.spawn(function()
                 end
             end
             
-            -- ส่ง Alert ถ้า Mythic/Special เปลี่ยน
+            -- ส่ง Alert ถ้ามี items สำคัญเปลี่ยน
             if next(changedItems) then
                 SendItemChangeAlert(changedItems)
             end
