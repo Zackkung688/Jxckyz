@@ -751,43 +751,11 @@ end
 end
 
 -- ================================
--- 🎯 ENHANCED WEBHOOK SYSTEM
+-- 🎯 WEBHOOK SYSTEM - GUI VERSION
 -- ================================
 
 local LastItemCount = {}
 local LastWebhookTime = 0
-
---- ตารางความหายากของไอเทม
-local RarityItems = {
-    Mythic = {
-        "Cid Sword", "DIO Diary", "Santa Gift",
-        "Cell Head", "Trait Reroll", "Race Reroll"
-    },
-    Special = {
-        "Stone Mask", "Cid Cloak", "Heavenly Arrow",
-        "Atomic Orb", "Beast Orb"
-    },
-    Legendary = {
-        "67", "Allmight Skin", "Gojo Skin", "Pain Skin",
-        "Pikachu Skin", "Ultraman Skin",
-        "Diamond Ore", "Diamond Sword",
-        "Light Fruit", "Stand Arrow"
-    },
-    Rare = {
-        "Six", "Seven", "Red Orb", "Yellow Orb",
-        "Green Orb", "Dark Orb", "Dark Fruit", "Gold Ore"
-    }
-}
-
---- หาความหายากของไอเทม
-local function FindRarity(item)
-    for rarity, list in pairs(RarityItems) do
-        if table.find(list, item) then
-            return rarity
-        end
-    end
-    return nil
-end
 
 --- ส่ง Webhook ไปยัง Discord
 local function PostWebhook(payload)
@@ -807,66 +775,62 @@ local function PostWebhook(payload)
     return success, result
 end
 
---- ดึงข้อมูลไอเทมทั้งหมดจาก InvData (รองรับทั้ง IntValue และ NumberValue)
+--- ดึงข้อมูลไอเทมทั้งหมดจาก GUI
 local function GetCurrentInventory()
     local inventory = {}
     pcall(function()
-        -- เช็คว่า InvData มีหรือไม่
-        if not Client:FindFirstChild("InvData") then
-            warn("⚠️ InvData not found!")
-            return
-        end
+        local invFrame = Client.PlayerGui:FindFirstChild("MainGui")
+        if not invFrame then return end
+        
+        invFrame = invFrame:FindFirstChild("INVENTORY")
+        if not invFrame then return end
+        
+        invFrame = invFrame:FindFirstChild("InvFrame")
+        if not invFrame then return end
 
-        for rarity, list in pairs(RarityItems) do
-            for _, item in ipairs(list) do
-                local itemValue = Client.InvData:FindFirstChild(item)
-                
-                -- รองรับทั้ง IntValue, NumberValue, และ ValueBase อื่นๆ
-                if itemValue and (
-                    itemValue:IsA("IntValue") or 
-                    itemValue:IsA("NumberValue") or 
-                    itemValue:IsA("ValueBase")
-                ) then
-                    local currentAmount = tonumber(itemValue.Value) or 0
+        for _, itemFrame in pairs(invFrame:GetChildren()) do
+            if itemFrame:IsA("Frame") or itemFrame:IsA("Folder") then
+                local button = itemFrame:FindFirstChild("Button")
+                if button then
+                    local amountLabel = button:FindFirstChild("Amount")
+                    local nameLabel = button:FindFirstChild("ItemName")
+                    local rarityLabel = button:FindFirstChild("Rarity")
                     
-                    if currentAmount > 0 then
-                        inventory[item] = {
-                            amount = currentAmount,
-                            rarity = rarity
-                        }
-                        -- Debug log
-                        print(string.format("✅ Found: %s x%d (%s)", item, currentAmount, rarity))
+                    if amountLabel and nameLabel and rarityLabel then
+                        local itemName = nameLabel.Text
+                        local rarity = rarityLabel.Text
+                        local amountText = amountLabel.Text
+                        
+                        -- แปลงจำนวนจาก text เป็นตัวเลข
+                        local amount = tonumber(amountText) or 
+                                     tonumber(amountText:match("x?%s*(%d+)")) or 
+                                     tonumber(amountText:match("(%d+)")) or 0
+                        
+                        if amount > 0 and itemName ~= "" and rarity ~= "" then
+                            inventory[itemName] = {
+                                amount = amount,
+                                rarity = rarity
+                            }
+                        end
                     end
                 end
             end
         end
     end)
     
-    -- Debug: แสดงจำนวน items ที่เจอ
-    local count = 0
-    for _ in pairs(inventory) do count = count + 1 end
-    print(string.format("📦 Total items in inventory: %d", count))
-    
     return inventory
 end
 
---- สร้าง Fields สำหรับแต่ละ Rarity (FIXED VERSION)
+--- สร้าง Fields สำหรับแต่ละ Rarity
 local function CreateRarityFields(inventory, changedItems, highlightChanges)
     local fields = {}
-    local rarityOrder = {"Mythic", "Special", "Legendary", "Rare"}
-    local rarityEmojis = {
-        Mythic = "🔴",
-        Special = "🟣",
-        Legendary = "🟡",
-        Rare = "🔵"
-    }
-
+    local rarityOrder = {"Secret", "Event", "Legendary", "Rare" , "Uncommon" , "Common"}
+    
     for _, rarity in ipairs(rarityOrder) do
         local lines = {}
-        local hasItems = false
-
-        -- เก็บ items ใส่ table เพื่อ sort
         local items = {}
+        
+        -- เก็บ items ตาม rarity
         for itemName, data in pairs(inventory) do
             if data.rarity == rarity then
                 table.insert(items, {
@@ -875,37 +839,35 @@ local function CreateRarityFields(inventory, changedItems, highlightChanges)
                 })
             end
         end
-
+        
         -- Sort ตามชื่อ
         table.sort(items, function(a, b) return a.name < b.name end)
-
+        
         -- สร้าง lines
         for _, item in ipairs(items) do
-            hasItems = true
             local line = item.name .. " x" .. item.amount
-
+            
             -- เพิ่มไฮไลท์การเปลี่ยนแปลง
             if highlightChanges and changedItems[item.name] then
                 local change = changedItems[item.name]
                 local sign = (change > 0) and "+" or ""
                 line = line .. " [" .. sign .. change .. "]"
-                -- ใส่ ** รอบทั้งบรรทัด
                 line = "**" .. line .. "**"
             end
-
+            
             table.insert(lines, line)
         end
-
+        
         -- เพิ่ม field ถ้ามี items
-        if hasItems then
+        if #lines > 0 then
             table.insert(fields, {
-                name = rarityEmojis[rarity] .. " " .. rarity .. " Items",
-                value = table.concat(lines, "\n"),  -- ไม่ใส่ ``` เพราะจะทำให้ไฮไลท์หาย
+                name = rarity .. " Items",
+                value = table.concat(lines, "\n"),
                 inline = false
             })
         end
     end
-
+    
     return fields
 end
 
@@ -957,7 +919,7 @@ local function SendStatusWebhook()
         username = "Jxckyz Hub",
         avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png",
         embeds = {{
-            title = "Jood Piece Inventory Status",
+            title = "Jood Piece Inventory Info",
             description = "**Current Player Statistics & Inventory**",
             color = 0xFF0000,
             fields = fields,
@@ -986,9 +948,11 @@ local function SendItemChangeAlert(changedItems)
     -- กรองเฉพาะ Mythic/Special ที่เปลี่ยนแปลง
     local mythicSpecialChanges = {}
     for item, change in pairs(changedItems) do
-        local rarity = FindRarity(item)
-        if rarity == "Mythic" or rarity == "Special" then
-            mythicSpecialChanges[item] = change
+        if inventory[item] then
+            local rarity = inventory[item].rarity
+            if rarity == "Mythic" or rarity == "Special" then
+                mythicSpecialChanges[item] = change
+            end
         end
     end
 
@@ -1014,12 +978,12 @@ local function SendItemChangeAlert(changedItems)
     end
 
     local payload = {
-        content = "@everyone",
+        content = c().WebhookPingEveryone and "@everyone" or "",
         username = "Jxckyz Hub - Item Alert",
         avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png",
         embeds = {{
-            title = "Mythic/Special Item Changed!",
-            description = "**items have been updated!**",
+            title = "Secret/Event Item Changed!",
+            description = "**Important items have been updated!**",
             color = 0xFF0000,
             fields = fields,
             thumbnail = {
@@ -1029,7 +993,7 @@ local function SendItemChangeAlert(changedItems)
                 )
             },
             footer = {
-                text = "Jxckyz Hub • Mythic Found",
+                text = "Jxckyz Hub • Alert",
                 icon_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png"
             },
             timestamp = DateTime.now():ToIsoDate()
@@ -1050,7 +1014,7 @@ local function SendTestWebhook()
         avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png",
         embeds = {{
             title = "Webhook Test Successful!",
-            description = "**Your webhook is working perfectly!**\n\nYou will receive:\n• Status updates every 1-60 minutes\n• Instant alerts for Mythic/Special changes",
+            description = "**Your webhook is working perfectly!**\n\nYou will receive:\n• Status updates every 1-60 minutes\n• Instant alerts for Secret/Event changes",
             color = 0x00FF00,
             fields = {
                 {
@@ -1080,7 +1044,7 @@ end
 -- ================================
 
 task.spawn(function()
-    while task.wait(1) do
+    while task.wait(0.5) do
         pcall(function()
             if not c().WebhookURL or c().WebhookURL == "" then return end
             
