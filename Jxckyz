@@ -1365,45 +1365,11 @@ Toggle(false, Perf, "Disable camera shake", "Disable Cam Shake", "DisableCamShak
 -- 🔔 WEBHOOK SECTION
 -- ================================
 local Webhook = Section(Tabs.Settings, "Discord Webhook")
-
--- 📝 Webhook URL Input
-Tabs.Settings:Input({
-    Title = "Webhook URL",
-    Value = c().WebhookURL or "",
-    Placeholder = "https://discord.com/api/webhooks/...",
-    Callback = function(v)
-        c().WebhookURL = v
-        Config_Manager.S().WebhookURL = v
-        Config_Manager.SG()
-    end
-})
-
--- 🧪 Test Webhook Button
-Button(Webhook, "Test Webhook", "Send test message to verify connection", function()
-    local success, result = SendTestWebhook()
-    if success then
-        print("✅ Test webhook sent successfully!")
-    else
-        warn("❌ Test webhook failed: " .. tostring(result))
-    end
-end)
-
--- ⏱️ Status Interval Slider
+Tabs.Settings:Input({Title = "Webhook URL", Value = c().WebhookURL or "", Placeholder = "https://discord.com/api/webhooks/...", Callback = function(v) c().WebhookURL = v Config_Manager.S().WebhookURL = v Config_Manager.SG() end})
+Button(Webhook, "Test Webhook", "Send test message to verify connection", function() local success, result = SendTestWebhook() if success then print("✅ Test webhook sent successfully!") else warn("❌ Test webhook failed: " .. tostring(result)) end end)
 Slider(Webhook, "Status Interval (Minutes)", 1, 1, 60, 5, "WebhookInterval")
-
--- 🔄 Auto Webhook Toggle
 Toggle(false, Webhook, "Auto send inventory status every X minutes", "Enable Auto Webhook", "AutoWebhook")
 
--- ================================
--- 🎁 ALERT SETTINGS
--- ================================
 local Alert = Section(Tabs.Settings, "Alert Settings")
-
--- 🔔 Ping Toggle
-Toggle(
-    true, Alert,
-    "Ping @everyone when Mythic/Special items change",
-    "Ping @everyone",
-    "WebhookPingEveryone"
-)
+Toggle(true, Alert, "Ping @everyone when Mythic/Special items change", "Ping @everyone", "WebhookPingEveryone")
 end
