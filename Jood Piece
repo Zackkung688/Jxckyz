@@ -751,333 +751,339 @@ end
 end
 
 -- ================================
--- 🎯 WEBHOOK SYSTEM (IMPROVED)
+-- 🎯 ENHANCED WEBHOOK SYSTEM
 -- ================================
 
---- เก็บค่าเดิมไว้เช็คของที่เพิ่มขึ้น
 local LastItemCount = {}
+local LastWebhookTime = 0
 
 --- ตารางความหายากของไอเทม
 local RarityItems = {
-Mythic = {
-    "Cid Sword", "DIO Diary", "Santa Gift",
-    "Cell Head", "Trait Reroll", "Race Reroll"
-},
-Special = {
-    "Stone Mask", "Cid Cloak", "Heavenly Arrow",
-    "Atomic Orb", "Beast Orb"
-},
-Legendary = {
-    "67", "Allmight Skin", "Gojo Skin", "Pain Skin",
-    "Pikachu Skin", "Ultraman Skin",
-    "Diamond Ore", "Diamond Sword",
-    "Light Fruit", "Stand Arrow"
-},
-Rare = {
-    "Six", "Seven", "Red Orb", "Yellow Orb",
-    "Green Orb", "Dark Orb", "Dark Fruit", "Gold Ore"
-}
+    Mythic = {
+        "Cid Sword", "DIO Diary", "Santa Gift",
+        "Cell Head", "Trait Reroll", "Race Reroll"
+    },
+    Special = {
+        "Stone Mask", "Cid Cloak", "Heavenly Arrow",
+        "Atomic Orb", "Beast Orb"
+    },
+    Legendary = {
+        "67", "Allmight Skin", "Gojo Skin", "Pain Skin",
+        "Pikachu Skin", "Ultraman Skin",
+        "Diamond Ore", "Diamond Sword",
+        "Light Fruit", "Stand Arrow"
+    },
+    Rare = {
+        "Six", "Seven", "Red Orb", "Yellow Orb",
+        "Green Orb", "Dark Orb", "Dark Fruit", "Gold Ore"
+    }
 }
 
 --- หาความหายากของไอเทม
---- @param item string ชื่อไอเทม
---- @return string|nil ความหายาก (Mythic, Special, Legendary, Rare)
 local function FindRarity(item)
-for rarity, list in pairs(RarityItems) do
-    if table.find(list, item) then
-        return rarity
+    for rarity, list in pairs(RarityItems) do
+        if table.find(list, item) then
+            return rarity
+        end
     end
-end
-return nil
-end
-
---- แปลงเวลาเป็นรูปแบบพุทธศักราช (BE)
---- @return string เวลาในรูปแบบ DD/MM/YYYY BE, HH:MM
-local function GetBETime()
-local t = os.date("!*t")
-t.year = t.year + 543
-return string.format(
-    "%02d/%02d/%04d BE, %02d:%02d",
-    t.day, t.month, t.year, t.hour, t.min
-)
+    return nil
 end
 
 --- ส่ง Webhook ไปยัง Discord
---- @param payload table ข้อมูล JSON ที่จะส่ง
 local function PostWebhook(payload)
-if not c().WebhookURL or c().WebhookURL == "" then 
-    return false, "Webhook URL not set"
+    if not c().WebhookURL or c().WebhookURL == "" then 
+        return false, "Webhook URL not set"
+    end
+
+    local success, result = pcall(function()
+        return request({
+            Url = c().WebhookURL,
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = HttpService:JSONEncode(payload)
+        })
+    end)
+
+    return success, result
 end
 
-local success, result = pcall(function()
-    return request({
-        Url = c().WebhookURL,
-        Method = "POST",
-        Headers = {["Content-Type"] = "application/json"},
-        Body = HttpService:JSONEncode(payload)
-    })
-end)
-
-return success, result
-end
-
---- ส่งสถานะผู้เล่นไปยัง Webhook
---- @return boolean สำเร็จหรือไม่
-local function SendStatusWebhook()
-local data = Client.Data
-if not data then 
-    return false 
-end
-
-local payload = {
-    username = "Jxckyz Hub",
-    avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png?ex=696ba53d&is=696a53bd&hm=9a76ee70062f6aa218dd5fc986c700b4926f7a067ad561837657a55dad35a1a7&",
-    embeds = {{
-        title = "📊 Jood Piece Status Report",
-        description = "**Current Player Statistics**",
-        color = 0xFF0000,
-        fields = {
-            {
-                name = "👤 Player Info",
-                value = string.format(
-                    "```\nName: %s\nUserID: %s```",
-                    Client.Name,
-                    tostring(Client.UserId)
-                ),
-                inline = false
-            },
-            {
-                name = "🌍 Server Info",
-                value = string.format("```\nJobId: %s```", game.JobId),
-                inline = false
-            },
-            {
-                name = "💰 Beli",
-                value = "```" .. FormatNumber(data.Beli.Value) .. "```",
-                inline = true
-            },
-            {
-                name = "💎 Gems",
-                value = "```" .. FormatNumber(data.Gems.Value) .. "```",
-                inline = true
-            },
-            {
-                name = "⭐ Level",
-                value = "```" .. tostring(data.Level.Value) .. "```",
-                inline = true
-            }
-        },
-        thumbnail = {
-            url = string.format(
-                "https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=150&height=150&format=png",
-                Client.UserId
-            )
-        },
-        footer = {
-            text = "Jxckyz Hub • " .. Client.Name,
-            icon_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png?ex=696ba53d&is=696a53bd&hm=9a76ee70062f6aa218dd5fc986c700b4926f7a067ad561837657a55dad35a1a7&"
-        },
-        timestamp = DateTime.now():ToIsoDate()
-    }}
-}
-
-local success, result = PostWebhook(payload)
-return success
-end
-
---- ส่งการแจ้งเตือนเมื่อเจอไอเทม
---- @param item string ชื่อไอเทม
---- @param rarity string ความหายาก
---- @param amount number จำนวน
---- @return boolean สำเร็จหรือไม่
-local function SendFoundItemWebhook(item, rarity, amount)
-if not c().WebhookURL or c().WebhookURL == "" then 
-    return false 
-end
-
--- กรองตามความหายากที่เลือก
-if c().WebhookWatchRarity 
-and #c().WebhookWatchRarity > 0 
-and not table.find(c().WebhookWatchRarity, rarity) then
-    return false
-end
-
--- กรอง Mythic Items เฉพาะ
-if rarity == "Mythic" 
-and c().WebhookMythicItems 
-and #c().WebhookMythicItems > 0 
-and not table.find(c().WebhookMythicItems, item) then
-    return false
-end
-
--- สี Embed ตามความหายาก
-local rarityColors = {
-    Mythic = 0xFF0000,      -- แดง
-    Special = 0x9B59B6,     -- ม่วง
-    Legendary = 0xF1C40F,   -- ทอง
-    Rare = 0x3498DB         -- น้ำเงิน
-}
-
--- Ping @everyone สำหรับ Mythic
-local content = nil
-if rarity == "Mythic" and c().WebhookPingEveryone then
-    content = "@everyone"
-end
-
--- อิโมจิตามความหายาก
-local rarityEmoji = {
-    Mythic = "🔴",
-    Special = "🟣",
-    Legendary = "🟡",
-    Rare = "🔵"
-}
-
-local payload = {
-    content = content,
-    username = "Jxckyz Hub - Item Notifier",
-    embeds = {{
-        title = rarityEmoji[rarity] .. " Found " .. item .. "!",
-        description = string.format(
-            "**You just obtained a %s item!**\n\n*Keep farming for more!* 💪",
-            rarity
-        ),
-        color = rarityColors[rarity] or 0xFFFFFF,
-        fields = {
-            {
-                name = "📦 Item Name",
-                value = "```" .. item .. "```",
-                inline = true
-            },
-            {
-                name = "✨ Rarity",
-                value = "```" .. rarity .. "```",
-                inline = true
-            },
-            {
-                name = "🔢 Amount",
-                value = "```x" .. tostring(amount) .. "```",
-                inline = true
-            }
-        },
-        thumbnail = {
-            url = string.format(
-                "https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=150&height=150&format=png",
-                Client.UserId
-            )
-        },
-        footer = {
-            text = "Jxckyz Hub • " .. Client.Name,
-            icon_url = "https://cdn.discordapp.com/icons/123456789/icon.png"
-        },
-        timestamp = DateTime.now():ToIsoDate()
-    }}
-}
-
-local success, result = PostWebhook(payload)
-
-if success then
-    print(string.format("✅ Webhook sent: %s (%s) x%d", item, rarity, amount))
-else
-    warn(string.format("❌ Webhook failed: %s", tostring(result)))
-end
-
-return success
-end
-
---- ส่ง Test Webhook
---- @return boolean สำเร็จหรือไม่
-local function SendTestWebhook()
-if not c().WebhookURL or c().WebhookURL == "" then 
-    return false, "Please set Webhook URL first!"
-end
-
-local payload = {
-    username = "Jxckyz Hub ",
-    avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png?ex=696ba53d&is=696a53bd&hm=9a76ee70062f6aa218dd5fc986c700b4926f7a067ad561837657a55dad35a1a7&",
-    embeds = {{
-        title = "✅ Webhook Test Successful!",
-        description = "**Your webhook is working perfectly!**\n\nYou will receive notifications when:\n• Status updates are sent\n• Rare items are found",
-        color = 0xFF0000,
-        fields = {
-            {
-                name = " Player",
-                value = "```" .. Client.Name .. "```",
-                inline = true
-            },
-            {
-                name = " UserID",
-                value = "```" .. tostring(Client.UserId) .. "```",
-                inline = true
-            },
-            {
-                name = " Test Time",
-                value = "```" .. GetBETime() .. "```",
-                inline = false
-            }
-        },
-        thumbnail = {
-            url = string.format(
-                "https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=150&height=150&format=png",
-                Client.UserId
-            )
-        },
-        footer = {
-            text = "Jxckyz Hub •  Test",
-            icon_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png?ex=696ba53d&is=696a53bd&hm=9a76ee70062f6aa218dd5fc986c700b4926f7a067ad561837657a55dad35a1a7&"
-        },
-        timestamp = DateTime.now():ToIsoDate()
-    }}
-}
-
-local success, result = PostWebhook(payload)
-return success, result
-end
-
--- ================================
--- 🔍 ITEM WATCH LOOP (ตรวจสอบไอเทมที่เพิ่ม)
--- ================================
-
-task.spawn(function()
-while task.wait(1) do
+--- ดึงข้อมูลไอเทมทั้งหมดจาก InvData
+local function GetCurrentInventory()
+    local inventory = {}
     pcall(function()
-        if not c().WebhookURL or c().WebhookURL == "" then return end
-        
         for rarity, list in pairs(RarityItems) do
             for _, item in ipairs(list) do
                 local itemValue = Client.InvData:FindFirstChild(item)
                 if itemValue and itemValue:IsA("IntValue") then
                     local currentAmount = itemValue.Value
-                    local lastAmount = LastItemCount[item] or 0
-                    
-                    -- เช็คว่าไอเทมเพิ่มขึ้นหรือไม่
-                    if currentAmount > lastAmount then
-                        local difference = currentAmount - lastAmount
-                        SendFoundItemWebhook(item, rarity, difference)
+                    if currentAmount > 0 then
+                        inventory[item] = {
+                            amount = currentAmount,
+                            rarity = rarity
+                        }
                     end
-                    
-                    LastItemCount[item] = currentAmount
                 end
             end
         end
     end)
+    return inventory
 end
+
+--- สร้าง Fields สำหรับแต่ละ Rarity
+local function CreateRarityFields(inventory, changedItems, highlightChanges)
+    local fields = {}
+    local rarityOrder = {"Mythic", "Special", "Legendary", "Rare"}
+    local rarityEmojis = {
+        Mythic = "🔴",
+        Special = "🟣",
+        Legendary = "🟡",
+        Rare = "🔵"
+    }
+
+    for _, rarity in ipairs(rarityOrder) do
+        local lines = {}
+        local hasItems = false
+
+        for itemName, data in pairs(inventory) do
+            if data.rarity == rarity then
+                hasItems = true
+                local line = itemName .. " x" .. data.amount
+
+                -- เพิ่มไฮไลท์การเปลี่ยนแปลง
+                if highlightChanges and changedItems[itemName] then
+                    local change = changedItems[itemName]
+                    local sign = (change > 0) and "+" or ""
+                    line = "**" .. line .. " [" .. sign .. change .. "]**"
+                end
+
+                table.insert(lines, line)
+            end
+        end
+
+        if hasItems then
+            table.insert(fields, {
+                name = rarityEmojis[rarity] .. " " .. rarity .. " Items",
+                value = "```" .. table.concat(lines, "\n") .. "```",
+                inline = false
+            })
+        end
+    end
+
+    return fields
+end
+
+--- ส่ง Status Webhook (ส่งทุก 1-60 นาที)
+local function SendStatusWebhook()
+    local data = Client.Data
+    if not data then return false end
+
+    local inventory = GetCurrentInventory()
+    local fields = {
+        {
+            name = "Player Info",
+            value = string.format(
+                "```\nName: %s\nUserID: %s```",
+                Client.Name,
+                tostring(Client.UserId)
+            ),
+            inline = false
+        },
+        {
+            name = "Server Info",
+            value = string.format("```\nJobId: %s```", game.JobId),
+            inline = false
+        },
+        {
+            name = "Beli",
+            value = "```" .. FormatNumber(data.Beli.Value) .. "```",
+            inline = true
+        },
+        {
+            name = "Gems",
+            value = "```" .. FormatNumber(data.Gems.Value) .. "```",
+            inline = true
+        },
+        {
+            name = "Level",
+            value = "```" .. tostring(data.Level.Value) .. "```",
+            inline = true
+        }
+    }
+
+    -- เพิ่ม Inventory Fields (ไม่มีไฮไลท์)
+    local inventoryFields = CreateRarityFields(inventory, {}, false)
+    for _, field in ipairs(inventoryFields) do
+        table.insert(fields, field)
+    end
+
+    local payload = {
+        username = "Jxckyz Hub",
+        avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png",
+        embeds = {{
+            title = "Jood Piece Inventory Status",
+            description = "**Current Player Statistics & Inventory**",
+            color = 0xFF0000,
+            fields = fields,
+            thumbnail = {
+                url = string.format(
+                    "https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=150&height=150&format=png",
+                    Client.UserId
+                )
+            },
+            footer = {
+                text = "Jxckyz Hub • " .. Client.Name,
+                icon_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png"
+            },
+            timestamp = DateTime.now():ToIsoDate()
+        }}
+    }
+
+    PostWebhook(payload)
+    LastWebhookTime = os.time()
+end
+
+--- ส่ง Alert เมื่อ Mythic/Special เปลี่ยนแปลง
+local function SendItemChangeAlert(changedItems)
+    local inventory = GetCurrentInventory()
+    
+    -- กรองเฉพาะ Mythic/Special ที่เปลี่ยนแปลง
+    local mythicSpecialChanges = {}
+    for item, change in pairs(changedItems) do
+        local rarity = FindRarity(item)
+        if rarity == "Mythic" or rarity == "Special" then
+            mythicSpecialChanges[item] = change
+        end
+    end
+
+    if next(mythicSpecialChanges) == nil then return end
+
+    local fields = {
+        {
+            name = "Player",
+            value = "```" .. Client.Name .. "```",
+            inline = true
+        },
+        {
+            name = "Time",
+            value = "```" .. os.date("%H:%M:%S") .. "```",
+            inline = true
+        }
+    }
+
+    -- เพิ่ม Inventory Fields (มีไฮไลท์)
+    local inventoryFields = CreateRarityFields(inventory, changedItems, true)
+    for _, field in ipairs(inventoryFields) do
+        table.insert(fields, field)
+    end
+
+    local payload = {
+        content = "@everyone",
+        username = "Jxckyz Hub - Item Alert",
+        avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png",
+        embeds = {{
+            title = "Mythic/Special Item Changed!",
+            description = "**items have been updated!**",
+            color = 0xFF0000,
+            fields = fields,
+            thumbnail = {
+                url = string.format(
+                    "https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=150&height=150&format=png",
+                    Client.UserId
+                )
+            },
+            footer = {
+                text = "Jxckyz Hub • Mythic Found",
+                icon_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png"
+            },
+            timestamp = DateTime.now():ToIsoDate()
+        }}
+    }
+
+    PostWebhook(payload)
+end
+
+--- ส่ง Test Webhook
+local function SendTestWebhook()
+    if not c().WebhookURL or c().WebhookURL == "" then 
+        return false, "Please set Webhook URL first!"
+    end
+
+    local payload = {
+        username = "Jxckyz Hub",
+        avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png",
+        embeds = {{
+            title = "Webhook Test Successful!",
+            description = "**Your webhook is working perfectly!**\n\nYou will receive:\n• Status updates every 1-60 minutes\n• Instant alerts for Mythic/Special changes",
+            color = 0x00FF00,
+            fields = {
+                {
+                    name = "Player",
+                    value = "```" .. Client.Name .. "```",
+                    inline = true
+                },
+                {
+                    name = "UserID",
+                    value = "```" .. tostring(Client.UserId) .. "```",
+                    inline = true
+                }
+            },
+            footer = {
+                text = "Jxckyz Hub • Test",
+                icon_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png"
+            },
+            timestamp = DateTime.now():ToIsoDate()
+        }}
+    }
+
+    return PostWebhook(payload)
+end
+
+-- ================================
+-- 🔍 ITEM WATCH LOOP
+-- ================================
+
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            if not c().WebhookURL or c().WebhookURL == "" then return end
+            
+            local currentInventory = GetCurrentInventory()
+            local changedItems = {}
+            
+            -- ตรวจสอบการเปลี่ยนแปลง
+            for item, data in pairs(currentInventory) do
+                local lastAmount = LastItemCount[item] or 0
+                local currentAmount = data.amount
+                
+                if currentAmount ~= lastAmount then
+                    changedItems[item] = currentAmount - lastAmount
+                    LastItemCount[item] = currentAmount
+                end
+            end
+            
+            -- ส่ง Alert ถ้า Mythic/Special เปลี่ยน
+            if next(changedItems) then
+                SendItemChangeAlert(changedItems)
+            end
+        end)
+    end
 end)
 
 -- ================================
--- 📤 AUTO WEBHOOK STATUS (ส่งสถานะอัตโนมัติ)
+-- 📤 AUTO WEBHOOK STATUS
 -- ================================
 
 func["AutoWebhook"] = function()
-while task.wait(1) do
-    if c().AutoWebhook and c().WebhookURL and c().WebhookURL ~= "" then
-        local intervalSeconds = (c().WebhookInterval or 5) * 60
-        task.wait(intervalSeconds)
-        
-        pcall(function()
-            SendStatusWebhook()
-        end)
+    while task.wait(1) do
+        if c().AutoWebhook and c().WebhookURL and c().WebhookURL ~= "" then
+            local intervalSeconds = (c().WebhookInterval or 5) * 60
+            local elapsed = os.time() - LastWebhookTime
+            
+            if elapsed >= intervalSeconds then
+                pcall(SendStatusWebhook)
+            end
+        end
     end
-end
 end
 
 --==================================================
@@ -1336,6 +1342,7 @@ Toggle(false, Perf, "Disable camera shake", "Disable Cam Shake", "DisableCamShak
 -- ================================
 local Webhook = Section(Tabs.Settings, "Discord Webhook")
 
+-- 📝 Webhook URL Input
 Tabs.Settings:Input({
     Title = "Webhook URL",
     Value = c().WebhookURL or "",
@@ -1347,7 +1354,8 @@ Tabs.Settings:Input({
     end
 })
 
-Button(Webhook, "Test Webhook", "Send test message", function()
+-- 🧪 Test Webhook Button
+Button(Webhook, "Test Webhook", "Send test message to verify connection", function()
     local success, result = SendTestWebhook()
     if success then
         print("✅ Test webhook sent successfully!")
@@ -1356,38 +1364,22 @@ Button(Webhook, "Test Webhook", "Send test message", function()
     end
 end)
 
+-- ⏱️ Status Interval Slider
 Slider(Webhook, "Status Interval (Minutes)", 1, 1, 60, 5, "WebhookInterval")
-Toggle(false, Webhook, "Auto send status", "Enable Auto Webhook", "AutoWebhook")
+
+-- 🔄 Auto Webhook Toggle
+Toggle(false, Webhook, "Auto send inventory status every X minutes", "Enable Auto Webhook", "AutoWebhook")
 
 -- ================================
--- 🎁 FOUND ITEM SETTINGS
+-- 🎁 ALERT SETTINGS
 -- ================================
-local Found = Section(Tabs.Settings, "Found Item Settings")
+local Alert = Section(Tabs.Settings, "Alert Settings")
 
-Dropdown(
-    Found, "Watch Rarity", "WebhookWatchRarity",
-    {"Mythic", "Special", "Legendary", "Rare"}, true
-)
-
-Dropdown(
-    Found, "Mythic Items Filter", "WebhookMythicItems",
-    RarityItems.Mythic, true
-)
-
+-- 🔔 Ping Toggle
 Toggle(
-    true, Found,
-    "Ping @everyone when found Mythic",
+    true, Alert,
+    "Ping @everyone when Mythic/Special items change",
     "Ping @everyone",
     "WebhookPingEveryone"
 )
 end
-
---==================================================
--- 🎉 SCRIPT LOADED
---==================================================
-print("========================================")
-print(" Jxckyz Hub - Jood Piece Loaded!")
-print(" Version: 2.0 (Webhook Enhanced)")
-print(" Player: " .. Client.Name)
-print(" UserID: " .. Client.UserId)
-print("========================================")
