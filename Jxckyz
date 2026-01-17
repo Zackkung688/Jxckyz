@@ -901,6 +901,7 @@ local function CreateRarityFields(inventory, changedItems, highlightChanges)
     return fields
 end
 
+--- ส่ง Status Webhook (ส่งทุก 1-60 นาที)
 --- ส่ง Status Webhook พร้อมแสดงการเปลี่ยนแปลง
 local function SendStatusWebhook()
     local data = Client.Data
@@ -908,15 +909,15 @@ local function SendStatusWebhook()
 
     local inventory = GetCurrentInventory()
     
-    -- จัดกลุ่ม items ตาม rarity (ทุกแบบ)
-local rarityGroups = {
-    Secret = {},
-    Event = {},
-    Legendary = {},
-    Rare = {},
-    Uncommon = {},
-    Common = {}
-}
+    -- จัดกลุ่ม items ตาม rarity
+    local rarityGroups = {
+        Secret = {},
+        Event = {},
+        Legendary = {},
+        Rare = {},
+        Uncommon = {},
+        Common = {}
+    }
     
     for itemName, itemData in pairs(inventory) do
         local rarity = itemData.rarity
@@ -1015,20 +1016,20 @@ local rarityGroups = {
             inline = false
         })
     end
-
--- เพิ่ม Rare Items
+    
+    -- เพิ่ม Rare Items
 if #rarityGroups.Rare > 0 then
     table.sort(rarityGroups.Rare, function(a, b) return a.name < b.name end)
     local lines = {}
     for _, item in ipairs(rarityGroups.Rare) do
         table.insert(lines, FormatItemWithChange(item.name, item.amount))
-    end
-    table.insert(fields, {
-        name = "**Rare Items**",
-        value = "```\n" .. table.concat(lines, "\n") .. "```",
-        inline = false
-    })
-end
+     end
+     table.insert(fields, {
+         name = "**Rare Items**",
+         value = "```\n" .. table.concat(lines, "\n") .. "```",
+         inline = false
+     })
+ end
 
 -- เพิ่ม Uncommon Items
 if #rarityGroups.Uncommon > 0 then
@@ -1101,7 +1102,7 @@ local function SendTestWebhook()
         embeds = {{
             title = "Webhook Test Successful!",
             description = "**Your webhook is working perfectly!**\n\nYou will receive:\n• Status Information everywhere\n• Instant alerts for rare item changes",
-            color = 0x00FF00,
+            color = 0xFF0000,
             fields = {
                 {
                     name = "Player",
@@ -1126,48 +1127,19 @@ local function SendTestWebhook()
 end
 
 -- ================================
--- 🔍 ITEM WATCH LOOP
--- ================================
-
-task.spawn(function()
-    while task.wait(5) do
-        pcall(function()
-            if not c().WebhookURL or c().WebhookURL == "" then return end
-            
-            local currentInventory = GetCurrentInventory()
-            local changedItems = {}
-            
-            -- ตรวจสอบการเปลี่ยนแปลง
-            for item, data in pairs(currentInventory) do
-                local lastAmount = LastItemCount[item] or 0
-                local currentAmount = data.amount
-                
-                if currentAmount ~= lastAmount then
-                    changedItems[item] = currentAmount - lastAmount
-                    LastItemCount[item] = currentAmount
-                end
-            end
-            
-            -- ส่ง Alert ถ้ามี items สำคัญเปลี่ยน
-            if next(changedItems) then
-                SendItemChangeAlert(changedItems)
-            end
-        end)
-    end
-end)
-
--- ================================
 -- 📤 AUTO WEBHOOK STATUS
 -- ================================
 
 func["AutoWebhook"] = function()
-    while task.wait(1) do
+    while task.wait(10) do -- เช็คทุก 10 วินาที
         if c().AutoWebhook and c().WebhookURL and c().WebhookURL ~= "" then
             local intervalSeconds = (c().WebhookInterval or 5) * 60
             local elapsed = os.time() - LastWebhookTime
             
             if elapsed >= intervalSeconds then
-                pcall(SendStatusWebhook)
+                pcall(function()
+                    SendStatusWebhook()
+                end)
             end
         end
     end
@@ -1427,7 +1399,4 @@ Tabs.Settings:Input({Title = "Webhook URL", Value = c().WebhookURL or "", Placeh
 Button(Webhook, "Test Webhook", "Send test message to verify connection", function() local success, result = SendTestWebhook() if success then print("✅ Test webhook sent successfully!") else warn("❌ Test webhook failed: " .. tostring(result)) end end)
 Slider(Webhook, "Status Interval (Minutes)", 1, 1, 60, 5, "WebhookInterval")
 Toggle(false, Webhook, "Auto send inventory status every X minutes", "Enable Auto Webhook", "AutoWebhook")
-
-local Alert = Section(Tabs.Settings, "Alert Settings")
-Toggle(true, Alert, "Ping @everyone when Mythic/Special items change", "Ping @everyone", "WebhookPingEveryone")
 end
