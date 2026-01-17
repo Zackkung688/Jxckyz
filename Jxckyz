@@ -469,7 +469,7 @@ end
 
 --- 🎰 AUTO RANDOM ITEM (สุ่มไอเทมอัตโนมัติ)
 func['AutoRandomItem'] = function() 
-while task.wait(0.1)do 
+while task.wait(0.5) do 
     xpcall(function() 
         if c().AutoRandomItem then 
             for i = 1, 5 do 
