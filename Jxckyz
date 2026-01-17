@@ -469,15 +469,18 @@ end
 
 --- 🎰 AUTO RANDOM ITEM (สุ่มไอเทมอัตโนมัติ)
 func['AutoRandomItem'] = function() 
-while task.wait(0.5) do 
-    xpcall(function() 
-        if c().AutoRandomItem then 
-            for i = 1, 5 do 
-                ReplicatedStorage:WaitForChild("System"):WaitForChild("RandomItem"):FireServer(5) 
-            end 
-        end 
-    end, function(d) warn(d) end) 
-end 
+while task.wait(0.12) do
+    xpcall(function()
+        if c().AutoRandomItem then
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("RandomItem"):FireServer(5)
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("RandomItem"):FireServer(1)
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("RandomItem"):FireServer(5)
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("RandomItem"):FireServer(1)
+            ReplicatedStorage:WaitForChild("System"):WaitForChild("RandomItem"):FireServer(5)
+        end
+    end, function(d)
+        warn(d)
+    end)
 end
 
 -- ========================================
