@@ -1,0 +1,554 @@
+if getgenv().AutoTradeLoaded then return end
+getgenv().AutoTradeLoaded = true
+
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local TradeSystem = ReplicatedStorage:WaitForChild("System"):WaitForChild("TradeSystem")
+local InventoryRemote = ReplicatedStorage:WaitForChild("System"):WaitForChild("Inv"):WaitForChild("Inventory")
+
+-- ตัวแปรหลัก
+local selectedPlayer = nil
+local selectedItems = {}
+local autoAcceptTrade = false
+local autoAddItems = false
+local autoReady = false
+local autoRemoveAndRejoin = false
+local guiEnabled = true
+local refreshRate = 1
+local isTrading = false
+local countdownValue = 0
+
+-- สร้าง ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "AutoTradeGui"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- ฟังก์ชันสร้าง UI Elements
+local function createFrame(name, parent, size, position, bgColor)
+    local frame = Instance.new("Frame")
+    frame.Name = name
+    frame.Size = size
+    frame.Position = position
+    frame.BackgroundColor3 = bgColor or Color3.fromRGB(30, 30, 40)
+    frame.BorderSizePixel = 0
+    frame.Parent = parent
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+    
+    return frame
+end
+
+local function createButton(name, parent, size, position, text, callback)
+    local button = Instance.new("TextButton")
+    button.Name = name
+    button.Size = size
+    button.Position = position
+    button.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+    button.Text = text
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.TextSize = 14
+    button.Font = Enum.Font.GothamBold
+    button.BorderSizePixel = 0
+    button.Parent = parent
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = button
+    
+    if callback then
+        button.MouseButton1Click:Connect(callback)
+    end
+    
+    -- Hover effect
+    button.MouseEnter:Connect(function()
+        button.BackgroundColor3 = Color3.fromRGB(80, 140, 255)
+    end)
+    button.MouseLeave:Connect(function()
+        if button.BackgroundColor3 ~= Color3.fromRGB(50, 200, 50) then
+            button.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+        end
+    end)
+    
+    return button
+end
+
+local function createTextLabel(name, parent, size, position, text)
+    local label = Instance.new("TextLabel")
+    label.Name = name
+    label.Size = size
+    label.Position = position
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.new(1, 1, 1)
+    label.TextSize = 14
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = parent
+    return label
+end
+
+local function createToggle(name, parent, size, position, text, callback)
+    local toggleFrame = createFrame(name.."Frame", parent, size, position, Color3.fromRGB(40, 40, 50))
+    
+    local label = createTextLabel("Label", toggleFrame, UDim2.new(0.7, 0, 1, 0), UDim2.new(0, 10, 0, 0), text)
+    
+    local toggle = Instance.new("TextButton")
+    toggle.Name = "Toggle"
+    toggle.Size = UDim2.new(0, 50, 0, 25)
+    toggle.Position = UDim2.new(1, -60, 0.5, -12)
+    toggle.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    toggle.Text = "OFF"
+    toggle.TextColor3 = Color3.new(1, 1, 1)
+    toggle.TextSize = 12
+    toggle.Font = Enum.Font.GothamBold
+    toggle.BorderSizePixel = 0
+    toggle.Parent = toggleFrame
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = toggle
+    
+    local enabled = false
+    toggle.MouseButton1Click:Connect(function()
+        enabled = not enabled
+        if enabled then
+            toggle.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+            toggle.Text = "ON"
+        else
+            toggle.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+            toggle.Text = "OFF"
+        end
+        callback(enabled)
+    end)
+    
+    return toggleFrame, toggle
+end
+
+-- Main Frame
+local mainFrame = createFrame("MainFrame", screenGui, UDim2.new(0, 600, 0, 450), UDim2.new(0.5, -300, 0.5, -225), Color3.fromRGB(25, 25, 35))
+mainFrame.Active = true
+mainFrame.Draggable = true
+
+-- Title Bar
+local titleBar = createFrame("TitleBar", mainFrame, UDim2.new(1, 0, 0, 40), UDim2.new(0, 0, 0, 0), Color3.fromRGB(60, 120, 255))
+local titleLabel = createTextLabel("Title", titleBar, UDim2.new(1, -100, 1, 0), UDim2.new(0, 15, 0, 0), "🔄 Auto Trade & Rejoin System")
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 16
+
+-- Close Button
+local closeBtn = createButton("CloseBtn", titleBar, UDim2.new(0, 35, 0, 35), UDim2.new(1, -40, 0, 2.5), "X", function()
+    mainFrame.Visible = false
+end)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+
+-- Toggle Button (เปิดปิด GUI)
+local toggleGui = Instance.new("TextButton")
+toggleGui.Name = "ToggleGui"
+toggleGui.Size = UDim2.new(0, 50, 0, 50)
+toggleGui.Position = UDim2.new(0, 10, 0.5, -25)
+toggleGui.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+toggleGui.Text = "📋"
+toggleGui.TextColor3 = Color3.new(1, 1, 1)
+toggleGui.TextSize = 24
+toggleGui.Font = Enum.Font.GothamBold
+toggleGui.BorderSizePixel = 0
+toggleGui.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = toggleGui
+
+toggleGui.MouseButton1Click:Connect(function()
+    mainFrame.Visible = not mainFrame.Visible
+end)
+
+-- Tab System
+local tabFrame = createFrame("TabFrame", mainFrame, UDim2.new(1, -20, 0, 35), UDim2.new(0, 10, 0, 50), Color3.fromRGB(35, 35, 45))
+
+local tabs = {"Players", "Items", "Settings"}
+local tabButtons = {}
+local contentFrames = {}
+
+for i, tabName in ipairs(tabs) do
+    local tabBtn = createButton("Tab"..tabName, tabFrame, UDim2.new(0.33, -5, 1, 0), UDim2.new((i-1) * 0.33, 2, 0, 0), tabName, function()
+        for _, frame in pairs(contentFrames) do
+            frame.Visible = false
+        end
+        contentFrames[tabName].Visible = true
+        
+        for _, btn in pairs(tabButtons) do
+            btn.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+        end
+        tabBtn.BackgroundColor3 = Color3.fromRGB(80, 160, 255)
+    end)
+    tabButtons[tabName] = tabBtn
+end
+
+-- Content Frames
+for _, tabName in ipairs(tabs) do
+    local content = createFrame("Content"..tabName, mainFrame, UDim2.new(1, -20, 1, -105), UDim2.new(0, 10, 0, 95), Color3.fromRGB(30, 30, 40))
+    content.Visible = (tabName == "Players")
+    contentFrames[tabName] = content
+end
+
+-- Players Tab
+local playerList = Instance.new("ScrollingFrame")
+playerList.Size = UDim2.new(1, -20, 1, -90)
+playerList.Position = UDim2.new(0, 10, 0, 40)
+playerList.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+playerList.BorderSizePixel = 0
+playerList.ScrollBarThickness = 6
+playerList.Parent = contentFrames["Players"]
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 5)
+listLayout.Parent = playerList
+
+local refreshLabel = createTextLabel("RefreshLabel", contentFrames["Players"], UDim2.new(1, 0, 0, 30), UDim2.new(0, 10, 0, 5), "🔄 Auto refresh every "..refreshRate.." second(s)")
+
+local selectedPlayerLabel = createTextLabel("SelectedLabel", contentFrames["Players"], UDim2.new(1, -20, 0, 30), UDim2.new(0, 10, 1, -85), "Selected: None")
+selectedPlayerLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+selectedPlayerLabel.BackgroundTransparency = 0
+selectedPlayerLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+local function refreshPlayerList()
+    for _, child in pairs(playerList:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    
+    local yPos = 0
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= player then
+            local playerBtn = createButton("Player_"..plr.Name, playerList, UDim2.new(1, -10, 0, 35), UDim2.new(0, 0, 0, yPos), plr.Name, function()
+                selectedPlayer = plr
+                selectedPlayerLabel.Text = "Selected: "..plr.Name
+                
+                for _, btn in pairs(playerList:GetChildren()) do
+                    if btn:IsA("TextButton") then
+                        btn.BackgroundColor3 = Color3.fromRGB(60, 120, 255)
+                    end
+                end
+                playerBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+            end)
+            
+            -- อัพเดทสีถ้าเป็นผู้เล่นที่เลือกอยู่
+            if selectedPlayer and plr == selectedPlayer then
+                playerBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+            end
+            
+            yPos = yPos + 40
+        end
+    end
+    
+    playerList.CanvasSize = UDim2.new(0, 0, 0, yPos)
+end
+
+refreshPlayerList()
+
+-- Items Tab
+local itemList = Instance.new("ScrollingFrame")
+itemList.Size = UDim2.new(1, -20, 1, -50)
+itemList.Position = UDim2.new(0, 10, 0, 40)
+itemList.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+itemList.BorderSizePixel = 0
+itemList.ScrollBarThickness = 6
+itemList.Parent = contentFrames["Items"]
+
+local itemLayout = Instance.new("UIListLayout")
+itemLayout.Padding = UDim.new(0, 5)
+itemLayout.Parent = itemList
+
+local selectAllBtn = createButton("SelectAll", contentFrames["Items"], UDim2.new(0.48, 0, 0, 35), UDim2.new(0, 10, 0, 2), "✅ Select All", nil)
+local deselectAllBtn = createButton("DeselectAll", contentFrames["Items"], UDim2.new(0.48, 0, 0, 35), UDim2.new(0.52, 0, 0, 2), "❌ Deselect All", nil)
+
+local function updateItemList()
+    for _, child in pairs(itemList:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    
+    local yPos = 0
+    
+    -- วนลูปผ่าน InvData และเรียงตามชื่อ
+    local items = {}
+    for _, itemValue in pairs(player.InvData:GetChildren()) do
+        if itemValue:IsA("NumberValue") and itemValue.Value > 0 then
+            table.insert(items, {name = itemValue.Name, value = itemValue.Value})
+        end
+    end
+    
+    -- เรียงตามชื่อ
+    table.sort(items, function(a, b)
+        -- ถ้าเป็นตัวเลข ให้เรียงตามตัวเลข
+        local aNum = tonumber(a.name)
+        local bNum = tonumber(b.name)
+        if aNum and bNum then
+            return aNum < bNum
+        end
+        return a.name < b.name
+    end)
+    
+    for _, item in ipairs(items) do
+        local itemName = item.name
+        local itemAmount = item.value
+        
+        -- แสดงชื่อให้สวยงาม
+        local displayName = itemName
+        if tonumber(itemName) then
+            displayName = "Item #"..itemName
+        end
+        
+        local itemFrame = createFrame(itemName.."Frame", itemList, UDim2.new(1, -10, 0, 35), UDim2.new(0, 0, 0, yPos), Color3.fromRGB(45, 45, 55))
+        
+        local label = createTextLabel("Label", itemFrame, UDim2.new(0.6, 0, 1, 0), UDim2.new(0, 10, 0, 0), displayName.." ["..itemAmount.."]")
+        
+        local toggle = Instance.new("TextButton")
+        toggle.Size = UDim2.new(0, 50, 0, 25)
+        toggle.Position = UDim2.new(1, -60, 0.5, -12)
+        toggle.BackgroundColor3 = selectedItems[itemName] and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+        toggle.Text = selectedItems[itemName] and "ON" or "OFF"
+        toggle.TextColor3 = Color3.new(1, 1, 1)
+        toggle.TextSize = 12
+        toggle.Font = Enum.Font.GothamBold
+        toggle.BorderSizePixel = 0
+        toggle.Parent = itemFrame
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 4)
+        corner.Parent = toggle
+        
+        toggle.MouseButton1Click:Connect(function()
+            if selectedItems[itemName] then
+                selectedItems[itemName] = nil
+                toggle.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+                toggle.Text = "OFF"
+            else
+                selectedItems[itemName] = true
+                toggle.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+                toggle.Text = "ON"
+            end
+        end)
+        
+        yPos = yPos + 40
+    end
+    
+    itemList.CanvasSize = UDim2.new(0, 0, 0, yPos)
+end
+
+-- Select All / Deselect All
+selectAllBtn.MouseButton1Click:Connect(function()
+    for _, itemValue in pairs(player.InvData:GetChildren()) do
+        if itemValue:IsA("NumberValue") and itemValue.Value > 0 then
+            selectedItems[itemValue.Name] = true
+        end
+    end
+    updateItemList()
+end)
+
+deselectAllBtn.MouseButton1Click:Connect(function()
+    selectedItems = {}
+    updateItemList()
+end)
+
+updateItemList()
+
+-- อัพเดทรายการไอเทมทุก 2 วินาที
+spawn(function()
+    while wait(2) do
+        if contentFrames["Items"].Visible then
+            updateItemList()
+        end
+    end
+end)
+
+-- Settings Tab
+local yOffset = 10
+createToggle("AutoAccept", contentFrames["Settings"], UDim2.new(1, -20, 0, 40), UDim2.new(0, 10, 0, yOffset), "Auto Accept Trade Requests", function(enabled)
+    autoAcceptTrade = enabled
+end)
+yOffset = yOffset + 50
+
+createToggle("AutoAdd", contentFrames["Settings"], UDim2.new(1, -20, 0, 40), UDim2.new(0, 10, 0, yOffset), "Auto Add Selected Items", function(enabled)
+    autoAddItems = enabled
+end)
+yOffset = yOffset + 50
+
+createToggle("AutoReady", contentFrames["Settings"], UDim2.new(1, -20, 0, 40), UDim2.new(0, 10, 0, yOffset), "Auto Ready After Adding Items", function(enabled)
+    autoReady = enabled
+end)
+yOffset = yOffset + 50
+
+createToggle("AutoRemoveRejoin", contentFrames["Settings"], UDim2.new(1, -20, 0, 40), UDim2.new(0, 10, 0, yOffset), "Auto Remove Items + Rejoin (Countdown=0)", function(enabled)
+    autoRemoveAndRejoin = enabled
+end)
+yOffset = yOffset + 60
+
+local statusLabel = createTextLabel("Status", contentFrames["Settings"], UDim2.new(1, -20, 0, 100), UDim2.new(0, 10, 0, yOffset), "Status: Waiting...")
+statusLabel.TextWrapped = true
+statusLabel.TextYAlignment = Enum.TextYAlignment.Top
+statusLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+statusLabel.BackgroundTransparency = 0
+
+-- Trade System Logic
+local function updateStatus(text)
+    statusLabel.Text = "Status: "..text
+    print("[Auto Trade] "..text)
+end
+
+local function sendTradeRequest()
+    if not selectedPlayer then
+        updateStatus("❌ Please select a player first!")
+        return
+    end
+    
+    local args = {selectedPlayer}
+    TradeSystem.SendTradeRequest:FireServer(unpack(args))
+    updateStatus("✉️ Trade request sent to "..selectedPlayer.Name)
+end
+
+local function addItems()
+    if not autoAddItems then return end
+    
+    task.wait(0.5)
+    for itemName, _ in pairs(selectedItems) do
+        -- ดึงจำนวนจริงจาก InvData
+        local invItem = player.InvData:FindFirstChild(itemName)
+        if invItem and invItem:IsA("NumberValue") then
+            local amount = invItem.Value
+            if amount > 0 then
+                local args = {"Add", itemName, amount}
+                TradeSystem.TradeAction:FireServer(unpack(args))
+                updateStatus("➕ Adding "..amount.."x "..itemName)
+                task.wait(0.15)
+            end
+        end
+    end
+    updateStatus("✅ All items added to trade")
+    
+    if autoReady then
+        task.wait(0.5)
+        local args = {"Ready"}
+        TradeSystem.TradeAction:FireServer(unpack(args))
+        updateStatus("✅ Auto ready activated")
+    end
+end
+
+local function removeAllItems()
+    updateStatus("🗑️ Removing all items...")
+    for itemName, _ in pairs(selectedItems) do
+        -- ดึงจำนวนจริงจาก InvData
+        local invItem = player.InvData:FindFirstChild(itemName)
+        if invItem and invItem:IsA("NumberValue") then
+            local args = {"Remove", itemName}
+            InventoryRemote:InvokeServer(unpack(args))
+            updateStatus("➖ Removed "..itemName)
+            task.wait(0.1)
+        end
+    end
+    updateStatus("✅ All items removed")
+end
+
+local function rejoinServer()
+    if getgenv().Rejoined then return end
+    getgenv().Rejoined = true
+    
+    updateStatus("🔄 Rejoining server...")
+    local placeId = game.PlaceId
+    local jobId = game.JobId
+    
+    -- เตะตัวเองออกจากเกม (Disconnect)
+    player:Kick("🔄 Rejoining to the same server...")
+    
+    task.wait(1)
+    
+    -- Teleport กลับเซิร์ฟเวอร์เดิม
+    TeleportService:TeleportToPlaceInstance(placeId, jobId, player)
+end
+
+-- Auto Accept Trade Requests
+TradeSystem.AcceptTradeRequest.OnClientEvent:Connect(function(fromPlayer)
+    isTrading = true
+    if autoAcceptTrade then
+        updateStatus("✅ Auto accepted trade from "..fromPlayer.Name)
+        addItems()
+    end
+end)
+
+-- Monitor Countdown
+local function monitorCountdown()
+    local mainGui = player.PlayerGui:WaitForChild("MainGui")
+    local tradingFrame = mainGui:WaitForChild("ONTRADING")
+    local countdownLabel = tradingFrame:WaitForChild("CountDown")
+    
+    countdownLabel:GetPropertyChangedSignal("Text"):Connect(function()
+        local text = countdownLabel.Text
+        if text ~= "" then
+            local num = tonumber(text)
+            if num then
+                countdownValue = num
+                updateStatus("⏱️ Countdown: "..num)
+                
+                -- เมื่อ countdown = 0.5 ให้ Remove Items
+                if num <= 0.5 and num > 0 and autoRemoveAndRejoin and isTrading then
+                    removeAllItems()
+                end
+                
+                -- เมื่อ countdown = 0 ให้ Rejoin
+                if num == 0 and autoRemoveAndRejoin and isTrading then
+                    task.wait(0.3)
+                    rejoinServer()
+                end
+            end
+        end
+    end)
+end
+
+-- เริ่มต้น monitor countdown
+pcall(monitorCountdown)
+
+-- Trade Update Handler
+TradeSystem.TradeUpdate.OnClientEvent:Connect(function(data)
+    if data.countdown then
+        countdownValue = data.countdown
+    end
+end)
+
+-- Trade Complete Handler
+TradeSystem.TradeComplete.OnClientEvent:Connect(function(success)
+    if success then
+        updateStatus("✅ Trade completed successfully!")
+    else
+        updateStatus("❌ Trade was cancelled")
+    end
+    isTrading = false
+    countdownValue = 0
+end)
+
+-- Send Trade Button
+local sendTradeBtn = createButton("SendTrade", contentFrames["Players"], UDim2.new(0.48, 0, 0, 40), UDim2.new(0, 10, 1, -45), "📤 Send Trade Request", sendTradeRequest)
+
+-- Manual Refresh Button
+local manualRefreshBtn = createButton("ManualRefresh", contentFrames["Players"], UDim2.new(0.48, 0, 0, 40), UDim2.new(0.52, 0, 1, -45), "🔄 Refresh Now", refreshPlayerList)
+
+-- Auto Refresh Loop
+spawn(function()
+    while wait(refreshRate) do
+        if contentFrames["Players"].Visible then
+            refreshPlayerList()
+        end
+    end
+end)
+
+updateStatus("✅ System loaded successfully!")
+print("Auto Trade GUI loaded!")
