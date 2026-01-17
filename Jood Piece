@@ -829,7 +829,7 @@ local function GetCurrentInventory()
     return inventory
 end
 
---- สร้าง Fields สำหรับแต่ละ Rarity
+--- สร้าง Fields สำหรับแต่ละ Rarity (FIXED VERSION)
 local function CreateRarityFields(inventory, changedItems, highlightChanges)
     local fields = {}
     local rarityOrder = {"Mythic", "Special", "Legendary", "Rare"}
@@ -844,26 +844,42 @@ local function CreateRarityFields(inventory, changedItems, highlightChanges)
         local lines = {}
         local hasItems = false
 
+        -- เก็บ items ใส่ table เพื่อ sort
+        local items = {}
         for itemName, data in pairs(inventory) do
             if data.rarity == rarity then
-                hasItems = true
-                local line = itemName .. " x" .. data.amount
-
-                -- เพิ่มไฮไลท์การเปลี่ยนแปลง
-                if highlightChanges and changedItems[itemName] then
-                    local change = changedItems[itemName]
-                    local sign = (change > 0) and "+" or ""
-                    line = "**" .. line .. " [" .. sign .. change .. "]**"
-                end
-
-                table.insert(lines, line)
+                table.insert(items, {
+                    name = itemName,
+                    amount = data.amount
+                })
             end
         end
 
+        -- Sort ตามชื่อ
+        table.sort(items, function(a, b) return a.name < b.name end)
+
+        -- สร้าง lines
+        for _, item in ipairs(items) do
+            hasItems = true
+            local line = item.name .. " x" .. item.amount
+
+            -- เพิ่มไฮไลท์การเปลี่ยนแปลง
+            if highlightChanges and changedItems[item.name] then
+                local change = changedItems[item.name]
+                local sign = (change > 0) and "+" or ""
+                line = line .. " [" .. sign .. change .. "]"
+                -- ใส่ ** รอบทั้งบรรทัด
+                line = "**" .. line .. "**"
+            end
+
+            table.insert(lines, line)
+        end
+
+        -- เพิ่ม field ถ้ามี items
         if hasItems then
             table.insert(fields, {
                 name = rarityEmojis[rarity] .. " " .. rarity .. " Items",
-                value = "```" .. table.concat(lines, "\n") .. "```",
+                value = table.concat(lines, "\n"),  -- ไม่ใส่ ``` เพราะจะทำให้ไฮไลท์หาย
                 inline = false
             })
         end
