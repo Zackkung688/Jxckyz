@@ -165,19 +165,6 @@ end
 return ClosestTarget
 end
 
---- ดึง AI ทั้งหมด
-local function GetAllAI()
-local enemies = {}
-if Workspace:FindFirstChild("NPCs") then
-    for _, mob in pairs(Workspace.NPCs:GetChildren()) do
-        if mob:IsA("Model") then
-            table.insert(enemies, mob)
-        end
-    end
-end
-return enemies
-end
-
 --- รับเควส (ใช้ทั้ง Remote และ FirePrompt)
 local function AcceptQuest(questName)
 pcall(function()
@@ -290,165 +277,65 @@ end
 end
 
 -- ========================================
--- 📊 FARM STATUS GUI
--- ========================================
-local StatusGui = nil
-
-local function CreateStatusGUI()
-if StatusGui then return end
-
-StatusGui = Instance.new("ScreenGui", CoreGui)
-StatusGui.Name = "FarmStatus"
-StatusGui.ResetOnSpawn = false
-
-local Frame = Instance.new("Frame", StatusGui)
-Frame.Size = UDim2.new(0, 300, 0, 120)
-Frame.Position = UDim2.new(0.5, -150, 0, 20)
-Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-Frame.BorderSizePixel = 0
-Frame.BackgroundTransparency = 0.3
-
-local Corner = Instance.new("UICorner", Frame)
-Corner.CornerRadius = UDim.new(0, 10)
-
-local Title = Instance.new("TextLabel", Frame)
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.BackgroundTransparency = 1
-Title.Text = "🎯 Farm Status"
-Title.TextColor3 = Color3.fromRGB(52, 152, 219)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 16
-
-local QuestName = Instance.new("TextLabel", Frame)
-QuestName.Name = "QuestName"
-QuestName.Size = UDim2.new(1, -20, 0, 25)
-QuestName.Position = UDim2.new(0, 10, 0, 35)
-QuestName.BackgroundTransparency = 1
-QuestName.Text = "Quest: None"
-QuestName.TextColor3 = Color3.fromRGB(255, 255, 255)
-QuestName.Font = Enum.Font.Gotham
-QuestName.TextSize = 13
-QuestName.TextXAlignment = Enum.TextXAlignment.Left
-
-local Progress = Instance.new("TextLabel", Frame)
-Progress.Name = "Progress"
-Progress.Size = UDim2.new(1, -20, 0, 25)
-Progress.Position = UDim2.new(0, 10, 0, 60)
-Progress.BackgroundTransparency = 1
-Progress.Text = "Progress: 0/0"
-Progress.TextColor3 = Color3.fromRGB(46, 204, 113)
-Progress.Font = Enum.Font.Gotham
-Progress.TextSize = 13
-Progress.TextXAlignment = Enum.TextXAlignment.Left
-
-local Status = Instance.new("TextLabel", Frame)
-Status.Name = "Status"
-Status.Size = UDim2.new(1, -20, 0, 25)
-Status.Position = UDim2.new(0, 10, 0, 85)
-Status.BackgroundTransparency = 1
-Status.Text = "Status: Idle"
-Status.TextColor3 = Color3.fromRGB(241, 196, 15)
-Status.Font = Enum.Font.Gotham
-Status.TextSize = 13
-Status.TextXAlignment = Enum.TextXAlignment.Left
-end
-
-local function UpdateStatusGUI()
-if not StatusGui then return end
-if not c().AutoFarm then
-    if StatusGui then StatusGui:Destroy() StatusGui = nil end
-    return
-end
-
-pcall(function()
-    local questUI = PlayerGui:FindFirstChild("QuestUI")
-    if questUI then
-        local desc = questUI:FindFirstChild("Quest")
-        if desc then desc = desc:FindFirstChild("Quest") end
-        if desc then desc = desc:FindFirstChild("Holder") end
-        if desc then desc = desc:FindFirstChild("Content") end
-        if desc then desc = desc:FindFirstChild("QuestInfo") end
-        
-        if desc then
-            local questDesc = desc:FindFirstChild("QuestDescription")
-            local questReq = desc:FindFirstChild("QuestRequirement")
-            
-            if questDesc and questReq then
-                StatusGui.Frame.QuestName.Text = "Quest: " .. questDesc.Text
-                StatusGui.Frame.Progress.Text = "Progress: " .. questReq.Text
-            end
-        end
-    end
-    
-    -- อัปเดตสถานะ
-    if PlayerGui.HUD:FindFirstChild('Quest') then
-        StatusGui.Frame.Status.Text = "Status: Farming..."
-        StatusGui.Frame.Status.TextColor3 = Color3.fromRGB(46, 204, 113)
-    else
-        StatusGui.Frame.Status.Text = "Status: Accepting Quest..."
-        StatusGui.Frame.Status.TextColor3 = Color3.fromRGB(241, 196, 15)
-    end
-end)
-end
-
--- ========================================
 -- ⚔️ MAIN FUNCTIONS
 -- ========================================
-
 --- 🎯 AUTO FARM
 func['AutoFarm'] = function()
-while task.wait() do
-    xpcall(function()
-        if c().AutoFarm and c().SelectedQuest and c().SelectedMob then
+    while task.wait(0.1) do
+        xpcall(function()
+            if not c().AutoFarm then
+                DisableNoClip()
+                return
+            end
+
             EnableNoClip()
-            CreateStatusGUI()
-            UpdateStatusGUI()
-            
-            local questObj = GetQuestObject(c().SelectedQuest)
-            
-            if questObj then
-                -- เช็คว่ารับเควสหรือยัง
-                if not PlayerGui.HUD:FindFirstChild('Quest') then
-                    if GetDistanceRoot(questObj:GetPivot().Position) > 4 then
-                        Teleport(CFrame.new(questObj:GetPivot().Position))
-                        task.wait(0.5)
-                    else
-                        AcceptQuest(c().SelectedQuest)
-                        task.wait(1)
-                    end
-                else
-                    -- หามอน
-                    local Closet = InRaya(GetAllAI(), function(v)
-                        local baseName = v.Name:match("^(%a+)") or v.Name
-                        return baseName == c().SelectedMob and v:FindFirstChild('Humanoid') and v:FindFirstChild('Humanoid').Health > 0 and PlayerGui.HUD:FindFirstChild('Quest')
-                    end)
-                    
-                    if Closet then
-                        repeat
-                            task.wait()
-                            local offsetY = c().FarmOffsetY or 4
-                            Teleport(CFrame.new(Closet:GetPivot().Position - Vector3.new(0, offsetY, 0)) * CFrame.Angles(math.rad(90), 0, 0))
-                            
-                            if c().AutoFastAttack then
-                                Attack()
-                            end
-                            
-                            UpdateStatusGUI()
-                        until not Closet:FindFirstChild('Humanoid') or Closet:FindFirstChild('Humanoid').Health <= 0 or not PlayerGui.HUD:FindFirstChild('Quest') or not c().AutoFarm
-                    else
-                        task.wait(0.5)
-                    end
+
+            if not c().SelectedMob or c().SelectedMob == "" then
+                return
+            end
+
+            local mob = InRaya(GetAllAI(), function(v)
+                local baseName = v.Name:match("^(%a+)") or v.Name
+                return baseName == c().SelectedMob
+                    and v:FindFirstChild("Humanoid")
+                    and v.Humanoid.Health > 0
+            end)
+
+            if not mob then
+                task.wait(0.5)
+                return
+            end
+
+            local hrp = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChildWhichIsA("BasePart")
+            if not hrp then return end
+
+            repeat
+                task.wait()
+
+                local offsetY = c().FarmOffsetY or 4
+                Teleport(CFrame.new(hrp.Position - Vector3.new(0, offsetY, 0)) * CFrame.Angles(math.rad(90), 0, 0))
+
+                if c().AutoFastAttack then
+                    Attack()
                 end
-            end
-        else
-            DisableNoClip()
-            if StatusGui then 
-                StatusGui:Destroy() 
-                StatusGui = nil 
-            end
-        end
-    end, function(d) warn(d) end)
+            until not c().AutoFarm
+                or not mob.Parent
+                or not mob:FindFirstChild("Humanoid")
+                or mob.Humanoid.Health <= 0
+
+        end, warn)
+    end
 end
+
+
+func["AutoAcceptQuest"] = function()
+    while task.wait(0.12) do
+        xpcall(function()
+            if c().AutoAcceptQuest and c().SelectedQuest then
+                AcceptQuest(c().SelectedQuest)
+            end
+        end, warn)
+    end
 end
 
 --- ⚔️ AUTO FAST ATTACK
@@ -817,7 +704,7 @@ if #quests > 0 then
     Dropdown(QuestSection, "Select Quest NPC", "SelectedQuest", quests, false)
 end
 
-Button(QuestSection, "Accept Quest", "Accept selected quest", function()
+Toggle(false, QuestSection, "Auto accept selected quest repeatedly", "Auto Accept Quest", "AutoAcceptQuest")
     if c().SelectedQuest then
         AcceptQuest(c().SelectedQuest)
     end
