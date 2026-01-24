@@ -1,0 +1,934 @@
+if not game:IsLoaded() then repeat task.wait() until game:IsLoaded() end
+
+-- ========================================
+-- 🔧 SERVICES & INITIALIZATION
+-- ========================================
+local cloneref = function(...) return ... end
+local Missing = function(t, f, fallback) return type(f) == t and f or fallback end
+cloneref = Missing("function", cloneref, function(...) return ... end)
+
+local Service = setmetatable({}, {__index = function(self, name) return cloneref(game:GetService(name)) end})
+
+do 
+ReplicatedStorage = Service.ReplicatedStorage 
+Players = Service.Players 
+RunService = Service.RunService 
+VirtualInputManager = Service.VirtualInputManager 
+VirtualUser = Service.VirtualUser 
+HttpService = Service.HttpService 
+CoreGui = Service.CoreGui 
+Workspace = Service.Workspace 
+Client = Players.LocalPlayer 
+Character = Client.Character or Client.CharacterAdded:Wait() 
+Humanoid = Character:WaitForChild("Humanoid") 
+RootPart = Character:WaitForChild("HumanoidRootPart") 
+PlayerGui = Client:WaitForChild("PlayerGui") 
+Backpack = Client:WaitForChild("Backpack") 
+func = {} 
+end
+
+local game = game 
+if typeof(game) ~= "Instance" then 
+game = workspace.Parent 
+end
+
+local function c() 
+return getgenv() 
+end
+
+-- 📦 Load Config Manager
+local Config_Manager = loadstring(game:HttpGet("https://raw.githubusercontent.com/Yenixs/Blockspin-Premium/refs/heads/main/Config-Manager"))() 
+Config_Manager.SC()
+
+-- 🚫 Anti-AFK System
+do 
+for _, conn in pairs(getconnections(Client.Idled)) do 
+    if conn.Disable then 
+        conn:Disable() 
+    elseif conn.Disconnect then 
+        conn:Disconnect() 
+    end 
+end 
+end
+
+-- 🔄 Character Respawn Handler
+Client.CharacterAdded:Connect(function(newCharacter) 
+Character = newCharacter 
+Humanoid = Character:WaitForChild("Humanoid") 
+RootPart = Character:WaitForChild("HumanoidRootPart") 
+Backpack = Client:WaitForChild("Backpack")
+end)
+
+-- ========================================
+-- 🗺️ ISLAND & QUEST DATA
+-- ========================================
+local IslandNames = {"Starter", "Boss", "Jungle", "Snow", "Desert", "Sailor", "Xmas"}
+
+-- ดึง Quest NPCs ทั้งหมด
+local function GetAllQuests()
+local quests = {}
+-- QuestNPC1 อยู่ใน ServiceNPCs
+if Workspace:FindFirstChild("ServiceNPCs") then
+    local q1 = Workspace.ServiceNPCs:FindFirstChild("QuestNPC1")
+    if q1 then
+        table.insert(quests, "QuestNPC1")
+    end
+end
+-- QuestNPC2-11 อยู่ใน Workspace
+for i = 2, 11 do
+    local questName = "QuestNPC" .. i
+    if Workspace:FindFirstChild(questName) then
+        table.insert(quests, questName)
+    end
+end
+return quests
+end
+
+-- ========================================
+-- 🛠️ UTILITY FUNCTIONS
+-- ========================================
+
+--- จัดรูปแบบตัวเลขให้อ่านง่าย
+local function FormatNumber(num) 
+if num >= 1e12 then 
+    return string.format("%.2fT", num / 1e12) 
+elseif num >= 1e9 then 
+    return string.format("%.2fB", num / 1e9) 
+elseif num >= 1e6 then 
+    return string.format("%.2fM", num / 1e6) 
+else 
+    return tostring(num) 
+end 
+end
+
+--- ดึงรายชื่อมอนสเตอร์ทั้งหมด
+local function GetAllMobs() 
+local mobs = {} 
+for _, mob in pairs(Workspace.NPCs:GetChildren()) do 
+    if mob:IsA("Model") and mob:FindFirstChild("Humanoid") then 
+        local baseName = mob.Name:match("^(%a+)") or mob.Name
+        if not table.find(mobs, baseName) then 
+            table.insert(mobs, baseName) 
+        end 
+    end 
+end 
+table.sort(mobs)
+return mobs 
+end
+
+--- ดึงรายชื่อ Service NPCs
+local function GetAllServiceNPCs()
+local npcs = {}
+if Workspace:FindFirstChild("ServiceNPCs") then
+    for _, npc in pairs(Workspace.ServiceNPCs:GetChildren()) do
+        if npc:IsA("Model") and npc:FindFirstChild("HumanoidRootPart") then
+            table.insert(npcs, npc.Name)
+        end
+    end
+end
+table.sort(npcs)
+return npcs
+end
+
+--- ดึงรายชื่อ Weapons
+local function GetAllWeapons()
+local weapons = {}
+for _, tool in pairs(Backpack:GetChildren()) do
+    if tool:IsA("Tool") then
+        table.insert(weapons, tool.Name)
+    end
+end
+table.sort(weapons)
+return weapons
+end
+
+--- Teleport
+local function Teleport(cf) 
+if Character and Character:FindFirstChild("HumanoidRootPart") then 
+    Character.HumanoidRootPart.CFrame = cf 
+end 
+end
+
+--- หาเป้าหมายที่ใกล้ที่สุด
+local function InRaya(Path, condition)
+local ClosestTarget = nil
+local ShortestDistance = math.huge
+for _, Object in pairs(Path) do
+    if condition(Object) then
+        local Distance = (Object:GetPivot().Position - RootPart.Position).Magnitude
+        if Distance < ShortestDistance then
+            ShortestDistance = Distance
+            ClosestTarget = Object
+        end
+    end
+end
+return ClosestTarget
+end
+
+--- ดึง AI ทั้งหมด
+local function GetAllAI()
+local enemies = {}
+if Workspace:FindFirstChild("NPCs") then
+    for _, mob in pairs(Workspace.NPCs:GetChildren()) do
+        if mob:IsA("Model") then
+            table.insert(enemies, mob)
+        end
+    end
+end
+return enemies
+end
+
+--- รับเควส (ใช้ทั้ง Remote และ FirePrompt)
+local function AcceptQuest(questName)
+pcall(function()
+    -- ใช้ Remote
+    local args = {questName}
+    ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("QuestAccept"):FireServer(unpack(args))
+    
+    -- ใช้ FirePrompt
+    local questNPC = nil
+    if questName == "QuestNPC1" then
+        questNPC = Workspace.ServiceNPCs:FindFirstChild("QuestNPC1")
+    else
+        questNPC = Workspace:FindFirstChild(questName)
+    end
+    
+    if questNPC then
+        local prompt = questNPC:FindFirstChild("HumanoidRootPart")
+        if prompt then
+            prompt = prompt:FindFirstChild("QuestPrompt")
+            if prompt then
+                fireproximityprompt(prompt)
+            end
+        end
+    end
+end)
+end
+
+--- ดึงระยะห่าง
+local function GetDistanceRoot(pos)
+if RootPart then
+    return (RootPart.Position - pos).Magnitude
+end
+return math.huge
+end
+
+--- ดึงข้อมูล Quest Object
+local function GetQuestObject(questName)
+if questName == "QuestNPC1" then
+    return Workspace.ServiceNPCs:FindFirstChild("QuestNPC1")
+else
+    return Workspace:FindFirstChild(questName)
+end
+end
+
+--- โจมตี (Ultra Fast)
+local function Attack()
+for i = 1, 5 do
+    pcall(function()
+        ReplicatedStorage:WaitForChild("CombatSystem"):WaitForChild("Remotes"):WaitForChild("RequestHit"):FireServer()
+    end)
+    task.wait()
+end
+end
+
+--- ใช้สกิล
+local function UseSkill(keyCode)
+pcall(function()
+    local args = {
+        "UseAbility",
+        {
+            FruitPower = c().CurrentFruit or "Flame",
+            KeyCode = keyCode
+        }
+    }
+    ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("FruitPowerRemote"):FireServer(unpack(args))
+end)
+end
+
+-- ========================================
+-- 🚫 NOCLIP SYSTEM
+-- ========================================
+local NoClipConnection = nil
+
+local function EnableNoClip()
+if NoClipConnection then return end
+NoClipConnection = RunService.Stepped:Connect(function()
+    if c().AutoFarm and Character then
+        for _, part in pairs(Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+        
+        -- NoClip มอน
+        for _, mob in pairs(Workspace.NPCs:GetChildren()) do
+            if mob:IsA("Model") then
+                for _, part in pairs(mob:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end
+    end
+end)
+end
+
+local function DisableNoClip()
+if NoClipConnection then
+    NoClipConnection:Disconnect()
+    NoClipConnection = nil
+end
+if Character then
+    for _, part in pairs(Character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = true
+        end
+    end
+end
+end
+
+-- ========================================
+-- 📊 FARM STATUS GUI
+-- ========================================
+local StatusGui = nil
+
+local function CreateStatusGUI()
+if StatusGui then return end
+
+StatusGui = Instance.new("ScreenGui", CoreGui)
+StatusGui.Name = "FarmStatus"
+StatusGui.ResetOnSpawn = false
+
+local Frame = Instance.new("Frame", StatusGui)
+Frame.Size = UDim2.new(0, 300, 0, 120)
+Frame.Position = UDim2.new(0.5, -150, 0, 20)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.BorderSizePixel = 0
+Frame.BackgroundTransparency = 0.3
+
+local Corner = Instance.new("UICorner", Frame)
+Corner.CornerRadius = UDim.new(0, 10)
+
+local Title = Instance.new("TextLabel", Frame)
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundTransparency = 1
+Title.Text = "🎯 Farm Status"
+Title.TextColor3 = Color3.fromRGB(52, 152, 219)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+
+local QuestName = Instance.new("TextLabel", Frame)
+QuestName.Name = "QuestName"
+QuestName.Size = UDim2.new(1, -20, 0, 25)
+QuestName.Position = UDim2.new(0, 10, 0, 35)
+QuestName.BackgroundTransparency = 1
+QuestName.Text = "Quest: None"
+QuestName.TextColor3 = Color3.fromRGB(255, 255, 255)
+QuestName.Font = Enum.Font.Gotham
+QuestName.TextSize = 13
+QuestName.TextXAlignment = Enum.TextXAlignment.Left
+
+local Progress = Instance.new("TextLabel", Frame)
+Progress.Name = "Progress"
+Progress.Size = UDim2.new(1, -20, 0, 25)
+Progress.Position = UDim2.new(0, 10, 0, 60)
+Progress.BackgroundTransparency = 1
+Progress.Text = "Progress: 0/0"
+Progress.TextColor3 = Color3.fromRGB(46, 204, 113)
+Progress.Font = Enum.Font.Gotham
+Progress.TextSize = 13
+Progress.TextXAlignment = Enum.TextXAlignment.Left
+
+local Status = Instance.new("TextLabel", Frame)
+Status.Name = "Status"
+Status.Size = UDim2.new(1, -20, 0, 25)
+Status.Position = UDim2.new(0, 10, 0, 85)
+Status.BackgroundTransparency = 1
+Status.Text = "Status: Idle"
+Status.TextColor3 = Color3.fromRGB(241, 196, 15)
+Status.Font = Enum.Font.Gotham
+Status.TextSize = 13
+Status.TextXAlignment = Enum.TextXAlignment.Left
+end
+
+local function UpdateStatusGUI()
+if not StatusGui then return end
+if not c().AutoFarm then
+    if StatusGui then StatusGui:Destroy() StatusGui = nil end
+    return
+end
+
+pcall(function()
+    local questUI = PlayerGui:FindFirstChild("QuestUI")
+    if questUI then
+        local desc = questUI:FindFirstChild("Quest")
+        if desc then desc = desc:FindFirstChild("Quest") end
+        if desc then desc = desc:FindFirstChild("Holder") end
+        if desc then desc = desc:FindFirstChild("Content") end
+        if desc then desc = desc:FindFirstChild("QuestInfo") end
+        
+        if desc then
+            local questDesc = desc:FindFirstChild("QuestDescription")
+            local questReq = desc:FindFirstChild("QuestRequirement")
+            
+            if questDesc and questReq then
+                StatusGui.Frame.QuestName.Text = "Quest: " .. questDesc.Text
+                StatusGui.Frame.Progress.Text = "Progress: " .. questReq.Text
+            end
+        end
+    end
+    
+    -- อัปเดตสถานะ
+    if PlayerGui.HUD:FindFirstChild('Quest') then
+        StatusGui.Frame.Status.Text = "Status: Farming..."
+        StatusGui.Frame.Status.TextColor3 = Color3.fromRGB(46, 204, 113)
+    else
+        StatusGui.Frame.Status.Text = "Status: Accepting Quest..."
+        StatusGui.Frame.Status.TextColor3 = Color3.fromRGB(241, 196, 15)
+    end
+end)
+end
+
+-- ========================================
+-- ⚔️ MAIN FUNCTIONS
+-- ========================================
+
+--- 🎯 AUTO FARM
+func['AutoFarm'] = function()
+while task.wait() do
+    xpcall(function()
+        if c().AutoFarm and c().SelectedQuest and c().SelectedMob then
+            EnableNoClip()
+            CreateStatusGUI()
+            UpdateStatusGUI()
+            
+            local questObj = GetQuestObject(c().SelectedQuest)
+            
+            if questObj then
+                -- เช็คว่ารับเควสหรือยัง
+                if not PlayerGui.HUD:FindFirstChild('Quest') then
+                    if GetDistanceRoot(questObj:GetPivot().Position) > 4 then
+                        Teleport(CFrame.new(questObj:GetPivot().Position))
+                        task.wait(0.5)
+                    else
+                        AcceptQuest(c().SelectedQuest)
+                        task.wait(1)
+                    end
+                else
+                    -- หามอน
+                    local Closet = InRaya(GetAllAI(), function(v)
+                        local baseName = v.Name:match("^(%a+)") or v.Name
+                        return baseName == c().SelectedMob and v:FindFirstChild('Humanoid') and v:FindFirstChild('Humanoid').Health > 0 and PlayerGui.HUD:FindFirstChild('Quest')
+                    end)
+                    
+                    if Closet then
+                        repeat
+                            task.wait()
+                            local offsetY = c().FarmOffsetY or 4
+                            Teleport(CFrame.new(Closet:GetPivot().Position - Vector3.new(0, offsetY, 0)) * CFrame.Angles(math.rad(90), 0, 0))
+                            
+                            if c().AutoFastAttack then
+                                Attack()
+                            end
+                            
+                            UpdateStatusGUI()
+                        until not Closet:FindFirstChild('Humanoid') or Closet:FindFirstChild('Humanoid').Health <= 0 or not PlayerGui.HUD:FindFirstChild('Quest') or not c().AutoFarm
+                    else
+                        task.wait(0.5)
+                    end
+                end
+            end
+        else
+            DisableNoClip()
+            if StatusGui then 
+                StatusGui:Destroy() 
+                StatusGui = nil 
+            end
+        end
+    end, function(d) warn(d) end)
+end
+end
+
+--- ⚔️ AUTO FAST ATTACK
+func['AutoFastAttack'] = function()
+while task.wait() do
+    xpcall(function()
+        if c().AutoFastAttack then
+            Attack()
+        end
+    end, warn)
+end
+end
+
+--- 🎭 AUTO SKILLS
+func['AutoSkills'] = function()
+while task.wait(c().SkillDelay or 0.5) do
+    xpcall(function()
+        if c().AutoSkills then
+            if c().UseSkillZ then
+                UseSkill(Enum.KeyCode.Z)
+                task.wait(c().SkillDelay or 0.5)
+            end
+            if c().UseSkillX then
+                UseSkill(Enum.KeyCode.X)
+                task.wait(c().SkillDelay or 0.5)
+            end
+            if c().UseSkillC then
+                UseSkill(Enum.KeyCode.C)
+                task.wait(c().SkillDelay or 0.5)
+            end
+            if c().UseSkillV then
+                UseSkill(Enum.KeyCode.V)
+                task.wait(c().SkillDelay or 0.5)
+            end
+        end
+    end, warn)
+end
+end
+
+--- 🗡️ AUTO EQUIP WEAPON
+local weaponDropdown = nil
+
+func['AutoEquipWeapon'] = function()
+local currentIndex = 1
+while task.wait(5) do
+    xpcall(function()
+        if c().AutoEquipWeapon and c().SelectedWeapons and #c().SelectedWeapons > 0 then
+            local weaponName = c().SelectedWeapons[currentIndex]
+            local tool = Backpack:FindFirstChild(weaponName)
+            if tool then
+                Humanoid:EquipTool(tool)
+            end
+            currentIndex = currentIndex + 1
+            if currentIndex > #c().SelectedWeapons then
+                currentIndex = 1
+            end
+        end
+    end, warn)
+end
+end
+
+--- 📊 AUTO STATS
+func['AutoStats'] = function()
+while task.wait(c().StatDelay or 0.5) do
+    xpcall(function()
+        if c().AutoStats and c().SelectedStat then
+            local args = {c().SelectedStat, c().StatAmount or 1}
+            ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("AllocateStat"):FireServer(unpack(args))
+        end
+    end, warn)
+end
+end
+
+-- ========================================
+-- 📊 WEBHOOK SYSTEM
+-- ========================================
+
+local LastWebhookTime = 0
+
+local function PostWebhook(payload)
+    if not c().WebhookURL or c().WebhookURL == "" then 
+        return false, "Webhook URL not set"
+    end
+
+    local success, result = pcall(function()
+        return request({
+            Url = c().WebhookURL,
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = HttpService:JSONEncode(payload)
+        })
+    end)
+
+    return success, result
+end
+
+local function SendStatusWebhook()
+    local data = Client.Data
+    if not data then return false end
+
+    local fields = {
+        {
+            name = "**Player Info**",
+            value = string.format("```\nName: %s\nUserID: %s```", 
+                Client.Name, 
+                tostring(Client.UserId)
+            ),
+            inline = false
+        },
+        {
+            name = "**Experience**",
+            value = "```" .. FormatNumber(data.Experience.Value) .. "```",
+            inline = true
+        },
+        {
+            name = "**Gems**",
+            value = "```" .. FormatNumber(data.Gems.Value) .. "```",
+            inline = true
+        },
+        {
+            name = "**Level**",
+            value = "```" .. tostring(data.Level.Value) .. "```",
+            inline = true
+        },
+        {
+            name = "**Money**",
+            value = "```" .. FormatNumber(data.Money.Value) .. "```",
+            inline = true
+        },
+        {
+            name = "**Stat Points**",
+            value = "```" .. tostring(data.StatPoints.Value) .. "```",
+            inline = true
+        }
+    }
+
+    local payload = {
+        username = "Jxckyz Hub - Sailor Piece",
+        avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png",
+        embeds = {{
+            title = "**Sailor Piece Status**",
+            description = "**Current Player Statistics**",
+            color = 0x3498db,
+            fields = fields,
+            thumbnail = {
+                url = string.format(
+                    "https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=150&height=150&format=png",
+                    Client.UserId
+                )
+            },
+            footer = {
+                text = "Jxckyz Hub • " .. Client.Name,
+                icon_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png"
+            },
+            timestamp = DateTime.now():ToIsoDate()
+        }}
+    }
+
+    PostWebhook(payload)
+    LastWebhookTime = os.time()
+end
+
+local function SendTestWebhook()
+    if not c().WebhookURL or c().WebhookURL == "" then 
+        return false, "Please set Webhook URL first!"
+    end
+
+    local payload = {
+        username = "Jxckyz Hub - Sailor Piece",
+        avatar_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png",
+        embeds = {{
+            title = "Webhook Test Successful!",
+            description = "**Your webhook is working perfectly!**",
+            color = 0x2ecc71,
+            fields = {
+                {
+                    name = "Player",
+                    value = "```" .. Client.Name .. "```",
+                    inline = true
+                },
+                {
+                    name = "UserID",
+                    value = "```" .. tostring(Client.UserId) .. "```",
+                    inline = true
+                }
+            },
+            footer = {
+                text = "Jxckyz Hub • Test",
+                icon_url = "https://cdn.discordapp.com/attachments/1437018883641835681/1461738151478562816/IMG_5253.png"
+            },
+            timestamp = DateTime.now():ToIsoDate()
+        }}
+    }
+
+    return PostWebhook(payload)
+end
+
+func["AutoWebhook"] = function()
+    while task.wait(10) do
+        if c().AutoWebhook and c().WebhookURL and c().WebhookURL ~= "" then
+            local intervalSeconds = (c().WebhookInterval or 5) * 60
+            local elapsed = os.time() - LastWebhookTime
+            
+            if elapsed >= intervalSeconds then
+                pcall(function()
+                    SendStatusWebhook()
+                end)
+            end
+        end
+    end
+end
+
+--==================================================
+-- 🌪️ WINDUI LOADER
+--==================================================
+local WindUI = loadstring(game:HttpGet(
+"https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
+))()
+
+--==================================================
+-- 🪟 MAIN WINDOW
+--==================================================
+local Window = WindUI:CreateWindow({
+Title = "Jxckyz || Sailor Piece",
+Icon = "github",
+Author = "By Jxckyz",
+Folder = "SailorPiece",
+Size = UDim2.fromOffset(480, 550),
+Theme = "Dark",
+Transparent = true,
+Resizable = true,
+
+OpenButton = {
+    Title = "Jxckyz",
+    Enabled = true,
+    Draggable = true,
+    OnlyMobile = false,
+    CornerRadius = UDim.new(1, 0),
+    StrokeThickness = 3,
+    Color = ColorSequence.new(
+        Color3.fromRGB(52, 152, 219),
+        Color3.fromRGB(52, 152, 219)
+    )
+}
+})
+
+--==================================================
+-- 📂 TABS
+--==================================================
+local Tabs = {
+Main     = Window:Tab({Title = "Auto Farm", Icon = "library"}),
+Quest    = Window:Tab({Title = "Quest", Icon = "scroll"}),
+Combat   = Window:Tab({Title = "Combat", Icon = "swords"}),
+Stats    = Window:Tab({Title = "Stats", Icon = "trending-up"}),
+Teleport = Window:Tab({Title = "Teleport", Icon = "map"}),
+Settings = Window:Tab({Title = "Settings", Icon = "settings"}),
+}
+
+Tabs.Main:Select()
+
+--==================================================
+-- 🧩 UI HELPER FUNCTIONS
+--==================================================
+
+local function Section(Tab, Title)
+return Tab:Section({
+    Title = Title,
+    Box = false,
+    TextSize = 17,
+    Opened = true
+})
+end
+
+local function Toggle(def, Tab, Desc, Title, Key)
+local thread
+local t = Tab:Toggle({
+    Title = Title,
+    Desc = Desc,
+    Value = c()[Key] or def,
+    Callback = function(state)
+        Config_Manager.S()[Key] = state
+        c()[Key] = state
+
+        if not state and thread then
+            task.cancel(thread)
+            thread = nil
+        end
+
+        if state and func[Key] then
+            thread = task.spawn(func[Key])
+        end
+
+        Config_Manager.SG()
+    end
+})
+
+if t then t.Callback(c()[Key] or def) end
+return t
+end
+
+local function Slider(Tab, Title, Step, Min, Max, Def, Key)
+local s = Tab:Slider({
+    Title = Title,
+    Step = Step,
+    Value = {Min = Min, Max = Max, Default = c()[Key] or Def},
+    Callback = function(val)
+        Config_Manager.S()[Key] = val
+        c()[Key] = val
+        Config_Manager.SG()
+    end
+})
+
+if s then s.Callback(c()[Key] or Def) end
+return s
+end
+
+local function Dropdown(Tab, Title, Key, Values, Multi)
+local d = Tab:Dropdown({
+    Title = Title,
+    Values = Values,
+    Multi = Multi or false,
+    AllowNone = false,
+    Value = c()[Key] or (Multi and {} or Values[1]),
+    Callback = function(v)
+        Config_Manager.S()[Key] = v
+        c()[Key] = v
+        Config_Manager.SG()
+    end
+})
+
+if d then d.Callback(c()[Key]) end
+return d
+end
+
+local function Button(Tab, Title, Desc, Callback)
+return Tab:Button({
+    Title = Title,
+    Desc = Desc,
+    Callback = Callback
+})
+end
+
+--==================================================
+-- 📑 TAB: AUTO FARM
+--==================================================
+do
+local Farm = Section(Tabs.Main, "Auto Farm Settings")
+
+local mobs = GetAllMobs()
+if #mobs > 0 then
+    Dropdown(Farm, "Select Mob", "SelectedMob", mobs, false)
+end
+
+Slider(Farm, "Farm Offset Y (Distance)", 1, 1, 10, 4, "FarmOffsetY")
+Toggle(false, Farm, "Enable auto farm", "Auto Farm", "AutoFarm")
+end
+
+--==================================================
+-- 📜 TAB: QUEST
+--==================================================
+do
+local QuestSection = Section(Tabs.Quest, "Quest Selection")
+
+local quests = GetAllQuests()
+if #quests > 0 then
+    Dropdown(QuestSection, "Select Quest NPC", "SelectedQuest", quests, false)
+end
+
+Button(QuestSection, "Accept Quest", "Accept selected quest", function()
+    if c().SelectedQuest then
+        AcceptQuest(c().SelectedQuest)
+    end
+end)
+end
+
+--==================================================
+-- ⚔️ TAB: COMBAT
+--==================================================
+do
+local Equip = Section(Tabs.Combat, "Auto Equip Weapons")
+
+local function UpdateWeaponDropdown()
+    local weapons = GetAllWeapons()
+    if #weapons > 0 then
+        if weaponDropdown then
+            weaponDropdown:Destroy()
+            weaponDropdown = nil
+        end
+        weaponDropdown = Dropdown(Equip, "Select Weapons", "SelectedWeapons", weapons, true)
+    end
+end
+
+Button(Equip, "Refresh Weapons", "Update weapon list", function()
+    UpdateWeaponDropdown()
+end)
+
+UpdateWeaponDropdown()
+
+Toggle(false, Equip, "Auto equip selected weapons", "Enable Auto Equip", "AutoEquipWeapon")
+
+local Attack = Section(Tabs.Combat, "Combat Settings")
+Toggle(false, Attack, "Ultra fast attack mode", "Auto Fast Attack", "AutoFastAttack")
+
+local Skills = Section(Tabs.Combat, "Auto Skills")
+Toggle(false, Skills, "Use skill Z", "Auto Skill Z", "UseSkillZ")
+Toggle(false, Skills, "Use skill X", "Auto Skill X", "UseSkillX")
+Toggle(false, Skills, "Use skill C", "Auto Skill C", "UseSkillC")
+Toggle(false, Skills, "Use skill V", "Auto Skill V", "UseSkillV")
+Slider(Skills, "Skill Delay (seconds)", 0.1, 0.1, 1, 0.5, "SkillDelay")
+Toggle(false, Skills, "Enable auto skills", "Enable Auto Skills", "AutoSkills")
+end
+
+--==================================================
+-- 📊 TAB: STATS
+--==================================================
+do
+local S = Section(Tabs.Stats, "Auto Stats Upgrade")
+local statOptions = {"Melee", "Defense", "Sword", "Power"}
+Dropdown(S, "Select Stat Type", "SelectedStat", statOptions, false)
+Slider(S, "Stat Amount (per upgrade)", 1, 1, 100, 1, "StatAmount")
+Slider(S, "Upgrade Delay (seconds)", 0.1, 0.1, 1, 0.5, "StatAmount")
+Slider(S, "Upgrade Delay (seconds)", 0.1, 0.1, 1, 0.5, "StatDelay")
+Toggle(false, S, "Enable auto stats upgrade", "Auto Stats", "AutoStats")
+end
+
+--==================================================
+-- 🗺️ TAB: TELEPORT
+--==================================================
+do
+local IslandTP = Section(Tabs.Teleport, "Teleport to Islands")
+Dropdown(IslandTP, "Select Island", "TeleportIsland", IslandNames, false)
+Button(IslandTP, "Teleport", "Warp to selected island", function()
+    if c().TeleportIsland then
+        pcall(function()
+            local args = {c().TeleportIsland}
+            ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TeleportToPortal"):FireServer(unpack(args))
+        end)
+    end
+end)
+
+local ServiceTP = Section(Tabs.Teleport, "Teleport to Service NPCs")
+local serviceNPCs = GetAllServiceNPCs()
+if #serviceNPCs > 0 then
+    Dropdown(ServiceTP, "Select Service NPC", "TeleportServiceNPC", serviceNPCs, false)
+    Button(ServiceTP, "Teleport", "Warp to selected NPC", function()
+        if c().TeleportServiceNPC then
+            local npc = Workspace.ServiceNPCs:FindFirstChild(c().TeleportServiceNPC)
+            if npc and npc:FindFirstChild("HumanoidRootPart") then
+                Teleport(npc.HumanoidRootPart.CFrame + Vector3.new(0, 5, 0))
+            end
+        end
+    end)
+end
+end
+
+--==================================================
+-- ⚙️ TAB: SETTINGS & WEBHOOK
+--==================================================
+do
+local Webhook = Section(Tabs.Settings, "Discord Webhook")
+Tabs.Settings:Input({
+    Title = "Webhook URL", 
+    Value = c().WebhookURL or "", 
+    Placeholder = "https://discord.com/api/webhooks/...", 
+    Callback = function(v) 
+        c().WebhookURL = v 
+        Config_Manager.S().WebhookURL = v 
+        Config_Manager.SG() 
+    end
+})
+
+Button(Webhook, "Test Webhook", "Send test message", function() 
+    local success, result = SendTestWebhook() 
+    if success then 
+        print("✅ Test webhook sent!") 
+    else 
+        warn("❌ Test failed: " .. tostring(result)) 
+    end 
+end)
+
+Slider(Webhook, "Status Interval (Minutes)", 1, 1, 60, 5, "WebhookInterval")
+Toggle(false, Webhook, "Auto send status every X minutes", "Enable Auto Webhook", "AutoWebhook")
+end
