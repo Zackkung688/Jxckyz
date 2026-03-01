@@ -1,0 +1,226 @@
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1441824701281468587/DfR458lNUCUlehTfaxeqPdcwwVe2pRGmvYP-rMwHIFg1ofbXQt-c21v7yrZd2J6R7hLz"
+
+local EMOJI_GEMS   = "<:emoji_3:1477566459331743835>"
+local EMOJI_COINS  = "<:emoji_2:1477565720266018836>"
+local EMOJI_HEARTS = "<:emoji_1:1477558043267956818>"
+local EMOJI_BUTTER = "<:emoji_4:1477566563522449480>"
+
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local player = Players.LocalPlayer
+local gui = player.PlayerGui
+
+local totalRuns = 0
+local totalExpGained = 0
+local totalPlaySeconds = 0
+
+local function getTextSafe(obj)
+    if obj and (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then
+        return obj.Text or "N/A"
+    end
+    return "N/A"
+end
+
+local function timeToSeconds(timeStr)
+    local h, m, s = timeStr:match("(%d+):(%d+):(%d+)")
+    if h and m and s then
+        return tonumber(h)*3600 + tonumber(m)*60 + tonumber(s)
+    end
+    return 0
+end
+
+local function secondsToTime(secs)
+    local h = math.floor(secs / 3600)
+    local m = math.floor((secs % 3600) / 60)
+    local s = secs % 60
+    return string.format("%02d:%02d:%02d", h, m, s)
+end
+
+local function parseReward(child)
+    local info = child:FindFirstChild("Info")
+    if not info then return nil end
+
+    local templateName = child.Name
+    local line = ""
+
+    if templateName == "CoinsReward" then
+        local name = getTextSafe(info:FindFirstChild("CoinName"))
+        local qty  = getTextSafe(info:FindFirstChild("Quantity"))
+        if name ~= "N/A" then
+            line = EMOJI_COINS .. " " .. name .. " : " .. qty
+        end
+
+    elseif templateName == "GemsReward" then
+        local name = getTextSafe(info:FindFirstChild("GemName"))
+        local qty  = getTextSafe(info:FindFirstChild("Quantity"))
+        if name ~= "N/A" then
+            line = EMOJI_GEMS .. " " .. name .. " : " .. qty
+        end
+
+    elseif templateName == "FrozenCoinsReward" then
+        -- White Butterflies
+        local name = getTextSafe(info:FindFirstChild("ItemName"))
+        local qty  = getTextSafe(info:FindFirstChild("Quantity"))
+        if name ~= "N/A" then
+            line = EMOJI_BUTTER .. " " .. name .. " : " .. qty
+        end
+
+    elseif templateName == "ItemReward" then
+        local name   = getTextSafe(info:FindFirstChild("ItemName"))
+        local qty    = getTextSafe(info:FindFirstChild("Quantity"))
+        local chance = info:FindFirstChild("Chance")
+        local chanceText = (chance and getTextSafe(chance) ~= "N/A") and " (Chance: " .. getTextSafe(chance) .. ")" or ""
+        if name ~= "N/A" then
+            line = EMOJI_HEARTS .. " " .. name .. " : " .. qty .. chanceText
+        end
+
+    elseif templateName == "LoveCoinsReward" then
+        local name = getTextSafe(info:FindFirstChild("ItemName"))
+        local qty  = getTextSafe(info:FindFirstChild("Quantity"))
+        if name ~= "N/A" then
+            line = name .. " : " .. qty
+        end
+
+    elseif templateName == "RedCloudsReward" then
+        local name = getTextSafe(info:FindFirstChild("ItemName"))
+        local qty  = getTextSafe(info:FindFirstChild("Quantity"))
+        if name ~= "N/A" then
+            line = name .. " : " .. qty
+        end
+
+    elseif templateName == "MagicTokensReward" then
+        local name = getTextSafe(info:FindFirstChild("MagicToken"))
+        local qty  = getTextSafe(info:FindFirstChild("Quantity"))
+        if name ~= "N/A" then
+            line = name .. " : " .. qty
+        end
+
+    elseif templateName == "UnitReward" then
+        local name   = getTextSafe(info:FindFirstChild("UnitName"))
+        local qty    = getTextSafe(info:FindFirstChild("Quantity"))
+        local chance = info:FindFirstChild("Chance")
+        local chanceText = (chance and getTextSafe(chance) ~= "N/A") and " (Chance: " .. getTextSafe(chance) .. ")" or ""
+        if name ~= "N/A" then
+            line = "⭐ " .. name .. " : " .. qty .. chanceText
+        end
+    end
+
+    return line ~= "" and line or nil
+end
+
+local function sendWebhook()
+    local Main = gui:WaitForChild("GameResult"):WaitForChild("Main")
+    local HUD = gui:WaitForChild("HUD"):WaitForChild("Main")
+
+    local level = getTextSafe(HUD:WaitForChild("Level"):WaitForChild("Label"))
+
+    -- ========== VICTORY / DEFEAT ==========
+    local resultStatus = "Defeat"
+    local victoryStroke = Main.ResultStatusStrokes:FindFirstChild("Victory")
+    local defeatStroke  = Main.ResultStatusStrokes:FindFirstChild("Defeat")
+    if victoryStroke and victoryStroke:IsA("UIStroke") and victoryStroke.Enabled then
+        resultStatus = "Victory"
+    elseif defeatStroke and defeatStroke:IsA("UIStroke") and defeatStroke.Enabled then
+        resultStatus = "Defeat"
+    end
+
+    -- ========== MAP ==========
+    local Stage = Main.Stage
+    local world      = getTextSafe(Stage:FindFirstChild("World"))
+    local act        = getTextSafe(Stage:FindFirstChild("Act"))
+    local difficulty = getTextSafe(Stage:FindFirstChild("Difficulty"))
+
+    -- ========== STATISTICS ==========
+    local Stat = Main.Statistic
+    local expName        = getTextSafe(Stat.ExpGain:FindFirstChild("Level"))
+    local expValue       = getTextSafe(Stat.ExpGain:FindFirstChild("Label"))
+    local timeTakenName  = getTextSafe(Stat.TimeTaken:FindFirstChild("Level"))
+    local timeTakenValue = getTextSafe(Stat.TimeTaken:FindFirstChild("Label"))
+    local wavesName      = getTextSafe(Stat.WavesBeaten:FindFirstChild("Level"))
+    local wavesValue     = getTextSafe(Stat.WavesBeaten:FindFirstChild("Label"))
+    local damageName     = getTextSafe(Stat.TotalDamageDealt:FindFirstChild("Level"))
+    local damageValue    = getTextSafe(Stat.TotalDamageDealt:FindFirstChild("Label"))
+
+    -- ========== SESSION STATE ==========
+    totalRuns = totalRuns + 1
+    local thisExpNum = tonumber(expValue:match("%d+")) or 0
+    totalExpGained = totalExpGained + thisExpNum
+    totalPlaySeconds = totalPlaySeconds + timeToSeconds(timeTakenValue)
+
+    -- ========== REWARDS (loop ทุก children ข้าม Configuration) ==========
+    local rewardLines = ""
+    local gotUnit = false  -- เพิ่มตรงนี้
+    for _, child in ipairs(Main.Rewards.Container:GetChildren()) do
+        if child.Name ~= "Configuration" and child:IsA("ImageButton") then
+            if child.Name == "UnitReward" then gotUnit = true end  -- เพิ่มตรงนี้
+            local line = parseReward(child)
+            if line then
+                rewardLines = rewardLines .. line .. "\n"
+            end
+        end
+    end
+
+    if rewardLines == "" then
+        rewardLines = "No rewards\n"
+    end
+
+    local embedColor = resultStatus == "Victory" and 3066993 or 15158332
+
+    local description =
+        "**Player Infos**\n" ..
+        "User : " .. player.Name .. "\n" ..
+        "Level : " .. level .. "\n\n" ..
+        "**Rewards**\n" ..
+        rewardLines .. "\n" ..
+        "**Match Result**\n" ..
+        world .. " | " .. act .. " | " .. difficulty .. "\n" ..
+        timeTakenName .. " : " .. timeTakenValue .. "\n" ..
+        damageName .. " : " .. damageValue .. "\n" ..
+        wavesName .. " : " .. wavesValue .. " - " .. resultStatus .. "\n" ..
+        expName .. " : " .. expValue .. "\n\n" ..
+        "**Session Stats [Run #" .. totalRuns .. "]**\n" ..
+        "Total Play Time : " .. secondsToTime(totalPlaySeconds) .. "\n" ..
+        "Total EXP Gained : " .. totalExpGained .. " (this run: +" .. thisExpNum .. ")"
+
+    local data = {
+        ["content"] = gotUnit and "<@975396447832899644>" or nil,
+        ["username"] = "Jxckyz",
+        ["embeds"] = {{
+            ["title"] = "[❤️VALENTINE❤️] Anime Ascendants",
+            ["description"] = description,
+            ["color"] = embedColor,
+            ["footer"] = {["text"] = "Jxckyz"},
+            ["timestamp"] = DateTime.now():ToIsoDate()
+        }}
+    }
+
+    local jsonData = HttpService:JSONEncode(data)
+
+    local success, err = pcall(function()
+        local req = syn and syn.request or (http and http.request) or request
+        req({
+            Url = WEBHOOK_URL,
+            Method = "POST",
+            Headers = {["Content-Type"] = "application/json"},
+            Body = jsonData
+        })
+    end)
+
+    if success then
+        print("[Webhook] ส่งสำเร็จ! Run #" .. totalRuns)
+    else
+        warn("[Webhook] Error: " .. tostring(err))
+    end
+end
+
+-- ========== LISTENER ==========
+local GameResultMain = gui:WaitForChild("GameResult"):WaitForChild("Main")
+
+GameResultMain:GetPropertyChangedSignal("Visible"):Connect(function()
+    if GameResultMain.Visible then
+        task.wait(1)
+        sendWebhook()
+    end
+end)
+
+print("[Webhook] Anime Ascendants tracker ready!")
