@@ -120,7 +120,6 @@ function Skills.Farm()
             pcall(function()
                 net.rev_KickEvent:FireServer(1)
                 task.wait(0.1)
-                net.rev_Transformed:FireServer()
             end)
             task.wait(0.2)
         end
