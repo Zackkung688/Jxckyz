@@ -1,1 +1,447 @@
+-- ══════════════════════════════════════════════
+--  JXCKYZ HUB  |  Lucky Block
+-- ══════════════════════════════════════════════
 
+local BASE_URL  = "https://xlinkx.xyz"
+local POST_SLUG = "dlhXuUu6"
+local API_KEY   = "ll_63cad1e988cadb1dfdebbac8249649c00c41bcbc8564da45"
+
+-- ── SERVICES ──────────────────────────────────
+local Players           = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService        = game:GetService("RunService")
+local HttpService       = game:GetService("HttpService")
+local LP                = Players.LocalPlayer
+
+
+-- ════════════════════════════════════════════════
+--  BACKEND
+-- ════════════════════════════════════════════════
+
+local HWID = (function()
+    local ok, id = pcall(function()
+        return game:GetService("RbxAnalyticsService"):GetClientId()
+    end)
+    return (ok and id and id ~= "") and id or tostring(LP.UserId)
+end)()
+
+local net = ReplicatedStorage
+    :WaitForChild("Shared")
+    :WaitForChild("Packages")
+    :WaitForChild("Network")
+
+local farmTarget = CFrame.new(
+    699.768311, 8.75000668, 231.199585,
+    0, 0, 1,  0, 1, 0,  -1, 0, 0
+)
+
+local function getChar()  return LP.Character end
+local function getRoot()
+    local c = getChar(); return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+local function tpTo(cf)
+    local root = getRoot()
+    if root then root.CFrame = cf + Vector3.new(0, 3, 0) end
+end
+
+local function findMyPlot()
+    local plots = workspace:FindFirstChild("Plots")
+    if not plots then return nil end
+    for i = 1, 5 do
+        local plot = plots:FindFirstChild("Plot"..i)
+        if plot then
+            local spawn = plot:FindFirstChild("SpawnPart")
+            if spawn and spawn:FindFirstChild("HomeIcon") then
+                return plot
+            end
+        end
+    end
+end
+
+local function getSlotPart(plot, slotName)
+    local b = plot and plot:FindFirstChild("Buttons")
+    return b and b:FindFirstChild(slotName)
+end
+
+local function fireCollect()
+    for i = 1, 30 do
+        pcall(function() net.rev_B_Collect:FireServer(i) end)
+    end
+end
+
+local function fireUpgrade()
+    for i = 1, 30 do
+        pcall(function() net.rev_B_Upgrade:FireServer(i) end)
+    end
+end
+
+local function equipDumbbell()
+    pcall(function()
+        local tool = LP.Backpack:FindFirstChild("Giant Gold Star Barbell")
+                  or (LP.Character and LP.Character:FindFirstChild("Giant Gold Star Barbell"))
+        if tool and LP.Character then
+            LP.Character:FindFirstChildOfClass("Humanoid"):EquipTool(tool)
+        end
+    end)
+end
+
+
+-- ════════════════════════════════════════════════
+--  SKILL MANAGEMENT
+-- ════════════════════════════════════════════════
+
+local Flags = {
+    Farm        = false,
+    Collect     = false,
+    Upgrade     = false,
+    WeightTrain = false,
+    SpeedUpgrade= false,
+    WalkSpeed   = 55,
+}
+
+local _walkRunning   = false
+local _walkTargetIdx = 1
+local _walkSlots     = { "Slot3", "Slot13", "Slot23" }
+
+local Skills = {}
+
+task.spawn(function()
+    while true do
+        local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.Jump = true end
+        task.wait(60)
+    end
+end)
+
+function Skills.Farm()
+    task.spawn(function()
+        while Flags.Farm do
+            pcall(function()
+                net.rev_KickEvent:FireServer(1)
+                task.wait(0.1)
+                net.rev_Transformed:FireServer()
+            end)
+            task.wait(0.2)
+        end
+    end)
+end
+
+function Skills.WalkLoop()
+    if _walkRunning then return end
+    _walkRunning = true
+    task.spawn(function()
+        while Flags.Collect or Flags.Upgrade do
+            local plot    = findMyPlot()
+            if not plot then task.wait(1); continue end
+
+            local slotPart = getSlotPart(plot, _walkSlots[_walkTargetIdx])
+            if slotPart then
+                tpTo(slotPart.CFrame)
+                task.wait(0.15)
+
+                local root = getRoot()
+                if root then
+                    local t0  = tick()
+                    local dst = slotPart.Position
+                    while (root.Position - dst).Magnitude > 3 and tick() - t0 < 4 do
+                        root.CFrame = root.CFrame + (dst - root.Position).Unit * Flags.WalkSpeed * 0.05
+                        task.wait(0.05)
+                    end
+                end
+
+                task.wait(0.1)
+                if Flags.Collect then fireCollect() end
+                if Flags.Upgrade  then fireUpgrade() end
+                task.wait(0.2)
+            end
+
+            _walkTargetIdx = (_walkTargetIdx % #_walkSlots) + 1
+            task.wait(0.15)
+        end
+        _walkRunning   = false
+        _walkTargetIdx = 1
+    end)
+end
+
+function Skills.WeightTrain()
+    equipDumbbell()
+    task.spawn(function()
+        while Flags.WeightTrain do
+            equipDumbbell()
+            task.wait(2)
+        end
+    end)
+end
+
+function Skills.SpeedUpgrade()
+    task.spawn(function()
+        while Flags.SpeedUpgrade do
+            pcall(function()
+                net:WaitForChild("rev_SPEED_UPGRADE"):FireServer(1)
+            end)
+            task.wait(0.4)
+        end
+    end)
+end
+
+RunService.Heartbeat:Connect(function(dt)
+    local char = getChar()
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    if Flags.Farm then
+        local diff = farmTarget.Position - root.Position
+        if diff.Magnitude > 2 then
+            root.Velocity = Vector3.zero
+            root.CFrame   = root.CFrame + diff.Unit * Flags.WalkSpeed * dt
+        end
+    end
+
+    if Flags.WeightTrain then
+        pcall(function()
+            local gui = LP.PlayerGui:FindFirstChild("KickUpgrades")
+            if not gui then return end
+            local targets = { gui:GetChildren()[4], gui:GetChildren()[5], gui:FindFirstChild("Bonus", true) }
+            for _, btn in pairs(targets) do
+                if btn and btn.Visible then
+                    local click = btn:IsA("ImageButton") and btn or btn:FindFirstChildWhichIsA("ImageButton", true)
+                    if click then
+                        for _, con in pairs(getconnections(click.Activated))        do con:Fire() end
+                        for _, con in pairs(getconnections(click.MouseButton1Click)) do con:Fire() end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+
+-- ════════════════════════════════════════════════
+--  KEY SYSTEM (xlinkx)
+-- ════════════════════════════════════════════════
+
+local WindUI = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"
+))()
+
+WindUI:AddTheme({
+    Name       = "LuckyBlock",
+    Accent     = Color3.fromHex("#0a0a14"),
+    Background = WindUI:Gradient({
+        ["0"]   = { Color = Color3.fromHex("#0c0c1a"), Transparency = 0 },
+        ["100"] = { Color = Color3.fromHex("#0f0f20"), Transparency = 0 },
+    }, { Rotation = 145 }),
+    Outline     = Color3.fromHex("#1e1e3a"),
+    Text        = Color3.fromHex("#e2e4ff"),
+    Placeholder = Color3.fromHex("#4a4a70"),
+    Button      = Color3.fromHex("#161628"),
+    Icon        = Color3.fromHex("#7b7bcc"),
+})
+WindUI:SetTheme("LuckyBlock")
+
+WindUI.Services = WindUI.Services or {}
+WindUI.Services.xlinkx = {
+    Name = "xlinkx", Icon = "lucide:key", Args = { "PostSlug", "ApiKey" },
+    New = function(PostSlug, ApiKey)
+        local function validateKey(key)
+            if not key or key:gsub("%s+", "") == "" then return false, "Please enter a key." end
+            key = key:gsub("%s+", "")
+            local url = BASE_URL .. "/api/keys/check"
+                .. "?post=" .. HttpService:UrlEncode(PostSlug)
+                .. "&key="  .. HttpService:UrlEncode(key)
+                .. "&hwid=" .. HttpService:UrlEncode(HWID)
+            local ok, res = pcall(game.HttpGet, game, url, true)
+            if not ok then return false, "Cannot connect to server." end
+            local ok2, data = pcall(HttpService.JSONDecode, HttpService, res)
+            if not ok2 then return false, "Bad response from server." end
+            if data.status == "error"   then return false, data.message or "Server error." end
+            if not data.valid           then return false, data.message or "Key invalid or expired." end
+            if data.hwid_bound and data.hwid_match == false then
+                return false, "HWID mismatch — key bound to another device."
+            end
+            if not data.hwid_bound then
+                local fn = request or (http and http.request) or (syn and syn.request)
+                if fn then
+                    pcall(fn, {
+                        Url    = BASE_URL .. "/api/keys/set-hwid",
+                        Method = "POST",
+                        Headers = { ["Content-Type"] = "application/json" },
+                        Body   = HttpService:JSONEncode({ post = PostSlug, api_key = ApiKey, key = key, hwid = HWID }),
+                    })
+                end
+            end
+            return true, "Key valid!"
+        end
+        return {
+            Verify = validateKey,
+            Copy   = function() setclipboard(BASE_URL .. "/post/" .. POST_SLUG) end,
+        }
+    end,
+}
+
+
+-- ════════════════════════════════════════════════
+--  FRONTEND  (WindUI)
+-- ════════════════════════════════════════════════
+
+local Window = WindUI:CreateWindow({
+    Title        = "Jxckyz Hub",
+    Icon         = "lucide:box",
+    Author       = "by Jxckyz",
+    Folder       = "JxckyzHub",
+    NewElements  = true,
+    Transparent  = true,
+    Size         = UDim2.fromOffset(560, 420),
+    Topbar       = { Height = 44, ButtonsType = "Mac" },
+    OpenButton   = {
+        Title           = "Jxckyz Hub",
+        CornerRadius    = UDim.new(1, 0),
+        StrokeThickness = 2,
+        Enabled         = true,
+        Draggable       = true,
+        OnlyMobile      = false,
+        Scale           = 0.7,
+        Color           = ColorSequence.new(
+            Color3.fromHex("#4338ca"),
+            Color3.fromHex("#7c3aed")
+        ),
+    },
+    KeySystem = {
+        Note    = "xlinkx.xyz/post/" .. POST_SLUG,
+        SaveKey = true,
+        API = {{
+            Title    = "xLink",
+            Icon     = "lucide:key",
+            Type     = "xlinkx",
+            PostSlug = POST_SLUG,
+            ApiKey   = API_KEY,
+            URL      = BASE_URL .. "/post/" .. POST_SLUG,
+        }},
+    },
+})
+
+Window:Tag({ Title = "Kick a Lucky Block", Icon = "lucide:box", Color = Color3.fromHex("#0f0e2a"), Radius = 6 })
+
+local TabFarm    = Window:Tab({ Title = "Farm",     Icon = "lucide:swords"   })
+local TabCollect = Window:Tab({ Title = "Collect",  Icon = "lucide:coins"    })
+local TabCombat  = Window:Tab({ Title = "Training", Icon = "lucide:dumbbell" })
+local TabSell    = Window:Tab({ Title = "Sell",     Icon = "lucide:tag"      })
+
+-- ── Farm Tab ──────────────────────────────────
+TabFarm:Section({ Title = "Brainrot Farm" })
+
+TabFarm:Toggle({
+    Title    = "Auto Farm Brainrot",
+    Value    = false,
+    Callback = function(v)
+        Flags.Farm = v
+        if v then Skills.Farm() end
+    end,
+})
+
+TabFarm:Space()
+TabFarm:Divider()
+TabFarm:Space()
+
+TabFarm:Slider({
+    Title    = "Walk Speed",
+    Value    = { Min = 10, Max = 150, Default = 55 },
+    Step     = 1,
+    Callback = function(v) Flags.WalkSpeed = v end,
+})
+
+-- ── Collect Tab ───────────────────────────────
+TabCollect:Section({ Title = "Auto Collect" })
+
+TabCollect:Toggle({
+    Title    = "Auto Collect Money",
+    Value    = false,
+    Callback = function(v)
+        Flags.Collect = v
+        if v then Skills.WalkLoop() end
+    end,
+})
+
+TabCollect:Space()
+TabCollect:Divider()
+TabCollect:Space()
+
+TabCollect:Section({ Title = "Auto Upgrade" })
+
+TabCollect:Toggle({
+    Title    = "Auto Upgrade",
+    Value    = false,
+    Callback = function(v)
+        Flags.Upgrade = v
+        if v then Skills.WalkLoop() end
+    end,
+})
+
+-- ── Combat Tab ────────────────────────────────
+TabCombat:Section({ Title = "Weight Training" })
+
+TabCombat:Toggle({
+    Title    = "Auto Weight Training",
+    Value    = false,
+    Callback = function(v)
+        Flags.WeightTrain = v
+        if v then Skills.WeightTrain() end
+    end,
+})
+
+TabCombat:Space()
+
+TabCombat:Button({
+    Title    = "Equip Dumbbell Now",
+    Callback = function() equipDumbbell() end,
+})
+
+TabCombat:Space()
+TabCombat:Divider()
+TabCombat:Space()
+
+TabCombat:Section({ Title = "Speed Upgrade" })
+
+TabCombat:Toggle({
+    Title    = "Auto Speed Upgrade",
+    Value    = false,
+    Callback = function(v)
+        Flags.SpeedUpgrade = v
+        if v then Skills.SpeedUpgrade() end
+    end,
+})
+
+TabCombat:Space()
+
+TabCombat:Button({
+    Title    = "Upgrade Speed Once",
+    Callback = function()
+        pcall(function() net:WaitForChild("rev_SPEED_UPGRADE"):FireServer(1) end)
+        WindUI:Notify({ Title = "Speed", Content = "Speed upgraded once.", Duration = 2 })
+    end,
+})
+
+-- ── Sell Tab ──────────────────────────────────
+TabSell:Section({ Title = "Sell" })
+
+TabSell:Button({
+    Title    = "Sell All",
+    Callback = function()
+        pcall(function() net:WaitForChild("ref_B_SellAll"):InvokeServer() end)
+        WindUI:Notify({ Title = "Sell", Content = "Sold all items.", Duration = 3 })
+    end,
+})
+
+TabSell:Space()
+
+TabSell:Button({
+    Title    = "Sell Held Item",
+    Callback = function()
+        pcall(function() net:WaitForChild("ref_B_Sell"):InvokeServer() end)
+        WindUI:Notify({ Title = "Sell", Content = "Sold held item.", Duration = 3 })
+    end,
+})
+
+TabFarm:Select()
+WindUI:Notify({ Title = "Jxckyz Hub", Content = "Loaded!  |  Kick a Lucky Block", Duration = 5 })
